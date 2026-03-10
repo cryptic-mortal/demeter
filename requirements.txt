@@ -36,3 +36,7 @@ git+https://github.com/openai/CLIP.git
 # --- Utilities ---
 aiofiles>=23.2.1
 httpx>=0.26.0
+
+# --- Conversation ---
+groq
+sentence_transformers
