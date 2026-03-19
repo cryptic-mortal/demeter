@@ -1,5 +1,4 @@
-import React, { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useRef, useState } from "react";
 import {
   Upload,
   Save,
@@ -7,10 +6,8 @@ import {
   Droplets,
   Thermometer,
   Wind,
-  Search,
   Sprout,
   Calendar,
-  ArrowLeft,
   Leaf,
   Database,
   Mic,
@@ -20,9 +17,92 @@ import {
   FlaskConical,
   Waves,
   Brain,
+  ChevronDown,
+  Eye,
 } from "lucide-react";
 import { agentService } from "../api/agentApi";
 import { extractSensors, formatOutcome } from "../utils/dataUtils";
+import Sidebar from "../components/Sidebar";
+
+const INPUT_FIELDS = [
+  {
+    label: "pH Level",
+    name: "pH",
+    icon: Droplets,
+    color: "var(--green)",
+    type: "number",
+  },
+  {
+    label: "EC (mS/cm)",
+    name: "EC",
+    icon: Activity,
+    color: "var(--amber)",
+    type: "number",
+  },
+  {
+    label: "Temp (°C)",
+    name: "temp",
+    icon: Thermometer,
+    color: "var(--blue)",
+    type: "number",
+  },
+  {
+    label: "Humidity (%)",
+    name: "humidity",
+    icon: Wind,
+    color: "#a78bfa",
+    type: "number",
+  },
+  {
+    label: "Crop",
+    name: "crop",
+    icon: Sprout,
+    color: "var(--green)",
+    type: "select",
+    opts: ["Lettuce", "Tomato", "Cucumber", "Basil", "Spinach"],
+  },
+  {
+    label: "Stage",
+    name: "stage",
+    icon: Calendar,
+    color: "var(--text-3)",
+    type: "select",
+    opts: ["Seedling", "Vegetative", "Flowering", "Fruiting"],
+  },
+];
+
+const ACTION_MAP = {
+  acid_dosage_ml: {
+    label: "Acid Dosage",
+    icon: FlaskConical,
+    unit: "ml",
+    color: "var(--red)",
+  },
+  base_dosage_ml: {
+    label: "Base Dosage",
+    icon: FlaskConical,
+    unit: "ml",
+    color: "#a78bfa",
+  },
+  nutrient_dosage_ml: {
+    label: "Nutrients",
+    icon: Sprout,
+    unit: "ml",
+    color: "var(--green)",
+  },
+  fan_speed_pct: {
+    label: "Fan Speed",
+    icon: Fan,
+    unit: "%",
+    color: "var(--blue)",
+  },
+  water_refill_l: {
+    label: "Water Refill",
+    icon: Waves,
+    unit: "L",
+    color: "var(--blue)",
+  },
+};
 
 export default function AgentControl() {
   const [file, setFile] = useState(null);
@@ -41,9 +121,8 @@ export default function AgentControl() {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
 
-  // 🧠 State for the Supervisor's Output
   const [decision, setDecision] = useState(null);
-  const [strategy, setStrategy] = useState("");
+  const [toast, setToast] = useState(null);
 
   const [sensors, setSensors] = useState({
     pH: "6.0",
@@ -54,54 +133,43 @@ export default function AgentControl() {
     stage: "Vegetative",
   });
 
-  // --- Handlers ---
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const selected = e.target.files[0];
-      setFile(selected);
-      setPreview(URL.createObjectURL(selected));
-      setSearchResults([]);
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleFile = (e) => {
+    if (e.target.files?.[0]) {
+      setFile(e.target.files[0]);
+      setPreview(URL.createObjectURL(e.target.files[0]));
       setDecision(null);
-      setStrategy("");
-      setExplanationText("");
     }
   };
 
-  const handleInputChange = (e) => {
-    setSensors({ ...sensors, [e.target.name]: e.target.value });
-  };
-
   const handleIngest = async () => {
-    if (!file) return alert("Please select an image first.");
+    if (!file) return showToast("Select an image first", "error");
     setLoadingIngest(true);
     try {
       await agentService.uploadFMU(file, sensors);
-      alert("✅ FMU Created & Stored Successfully!");
-    } catch (error) {
-      console.error(error);
-      alert("❌ Ingest Failed. Check console.");
+      showToast("Memory stored successfully");
+    } catch {
+      showToast("Ingest failed", "error");
     } finally {
       setLoadingIngest(false);
     }
   };
 
   const handleSearch = async () => {
-    if (!file) return alert("Please select an image to search with.");
+    if (!file) return showToast("Select an image to analyze", "error");
     setLoadingSearch(true);
     setDecision(null);
-    setStrategy("");
-
     try {
-      const response = await agentService.searchFMU(file, sensors);
-
-      if (response.explanation) setExplanationText(response.explanation);
-      if (response.strategy) setStrategy(response.strategy);
-      if (response.agent_decision) setDecision(response.agent_decision);
-
-      setSearchResults(response.search_results || []);
-    } catch (error) {
-      console.error(error);
-      alert("❌ Search Failed.");
+      const res = await agentService.searchFMU(file, sensors);
+      if (res.explanation) setExplanationText(res.explanation);
+      if (res.agent_decision) setDecision(res.agent_decision);
+      setSearchResults(res.search_results || []);
+    } catch {
+      showToast("Analysis failed", "error");
     } finally {
       setLoadingSearch(false);
     }
@@ -110,79 +178,20 @@ export default function AgentControl() {
   const handleTextQuery = async () => {
     if (!textQuery) return;
     setLoadingSearch(true);
-    setSearchResults([]);
-
     try {
       const data = await agentService.queryText(textQuery);
-      if (data.results) {
-        // Map backend format to frontend expectation
-        const mappedResults = data.results.map((r) => ({
-          id: r.id,
-          score: r.score || 1.0,
-          payload: r.payload,
-        }));
-        setSearchResults(mappedResults);
-        if (mappedResults.length === 0) alert("No records found.");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Text Query Failed");
+      if (data.results)
+        setSearchResults(
+          data.results.map((r) => ({
+            id: r.id,
+            score: r.score || 1,
+            payload: r.payload,
+          })),
+        );
+    } catch {
+      showToast("Query failed", "error");
     } finally {
       setLoadingSearch(false);
-    }
-  };
-
-  // --- Helper to Map Decision Keys to UI ---
-  const getActionCardProps = (key, value) => {
-    switch (key) {
-      case "acid_dosage_ml":
-        return {
-          label: "Acid Dosage",
-          value: `${value} ml`,
-          icon: FlaskConical,
-          color: "text-rose-500",
-          bg: "bg-rose-50",
-        };
-      case "base_dosage_ml":
-        return {
-          label: "Base Dosage",
-          value: `${value} ml`,
-          icon: FlaskConical,
-          color: "text-indigo-500",
-          bg: "bg-indigo-50",
-        };
-      case "nutrient_dosage_ml":
-        return {
-          label: "Nutrient Mix",
-          value: `${value} ml`,
-          icon: Sprout,
-          color: "text-emerald-500",
-          bg: "bg-emerald-50",
-        };
-      case "fan_speed_pct":
-        return {
-          label: "Fan Speed",
-          value: `${value}%`,
-          icon: Fan,
-          color: "text-cyan-500",
-          bg: "bg-cyan-50",
-        };
-      case "water_refill_l":
-        return {
-          label: "Water Refill",
-          value: `${value} L`,
-          icon: Waves,
-          color: "text-blue-500",
-          bg: "bg-blue-50",
-        };
-      default:
-        return {
-          label: key.replace(/_/g, " "),
-          value: value,
-          icon: Zap,
-          color: "text-gray-500",
-          bg: "bg-gray-50",
-        };
     }
   };
 
@@ -195,15 +204,28 @@ export default function AgentControl() {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-        await handleAudioUpload(audioBlob);
-        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setLoadingSearch(true);
+        try {
+          const data = await agentService.queryAudio(blob);
+          if (data.transcription) setTextQuery(data.transcription);
+          if (data.results)
+            setSearchResults(
+              data.results.map((r) => ({
+                id: r.id,
+                score: r.score || 1,
+                payload: r.payload,
+              })),
+            );
+        } finally {
+          setLoadingSearch(false);
+        }
+        stream.getTracks().forEach((t) => t.stop());
       };
       mediaRecorderRef.current.start();
       setIsRecording(true);
-    } catch (err) {
-      console.error("Mic Error:", err);
-      alert("Microphone access denied.");
+    } catch {
+      showToast("Microphone access denied", "error");
     }
   };
 
@@ -214,457 +236,487 @@ export default function AgentControl() {
     }
   };
 
-  const handleAudioUpload = async (audioBlob) => {
-    setLoadingSearch(true);
-    setSearchResults([]);
-    try {
-      const data = await agentService.queryAudio(audioBlob);
-      if (data.transcription) setTextQuery(data.transcription);
-      if (data.results) {
-        const mappedResults = data.results.map((r) => ({
-          id: r.id,
-          score: r.score || 1.0,
-          payload: r.payload,
-        }));
-        setSearchResults(mappedResults);
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Audio Query Failed");
-    } finally {
-      setLoadingSearch(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#F4F9F6] font-sans text-gray-800 pb-20">
-      {/* --- 1. NAVBAR --- */}
-      <nav className="border-b border-gray-200 bg-white sticky top-0 z-20 h-16 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
-          <Link
-            to="/"
-            className="flex items-center space-x-2 hover:opacity-80 transition"
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ background: "var(--bg)" }}
+    >
+      <Sidebar />
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-mono animate-fade-in"
+          style={{
+            background:
+              toast.type === "error"
+                ? "rgba(248,113,113,0.15)"
+                : "rgba(74,222,128,0.15)",
+            border: `1px solid ${toast.type === "error" ? "rgba(248,113,113,0.4)" : "rgba(74,222,128,0.4)"}`,
+            color: toast.type === "error" ? "var(--red)" : "var(--green)",
+          }}
+        >
+          {toast.msg}
+        </div>
+      )}
+
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header
+          className="flex-shrink-0 px-6 py-4 border-b flex items-center gap-3"
+          style={{ borderColor: "var(--border)", background: "var(--bg-2)" }}
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{
+              background: "rgba(74,222,128,0.1)",
+              border: "1px solid rgba(74,222,128,0.2)",
+            }}
           >
-            <div className="bg-emerald-500 p-1.5 rounded-lg text-white">
-              <Leaf size={20} fill="currentColor" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-gray-900">
-              Demeter
-            </span>
-          </Link>
-          <div className="flex items-center space-x-6 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-            <Link
-              to="/dashboard"
-              className="hover:text-emerald-600 transition-colors"
+            <Brain size={15} style={{ color: "var(--green)" }} />
+          </div>
+          <div>
+            <h1
+              className="font-bold text-base"
+              style={{ color: "var(--text)" }}
             >
-              Dashboard
-            </Link>
+              Agent Control
+            </h1>
+            <p
+              className="text-[11px] font-mono"
+              style={{ color: "var(--text-3)" }}
+            >
+              Ingest memories · Query the Supervisor · Run analysis
+            </p>
           </div>
-        </div>
-      </nav>
+        </header>
 
-      <div className="max-w-7xl mx-auto px-6 mt-8">
-        {/* Header Section */}
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-              <Brain className="text-emerald-500 w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Agent Control Center
-              </h1>
-              <p className="text-gray-500 mt-1">
-                Ingest new crop memories or query the Supervisor Agent
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/"
-            className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-emerald-600 transition-colors bg-white px-4 py-2.5 rounded-lg border border-gray-200 shadow-sm hover:shadow-md"
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Search bar */}
+          <div
+            className="flex gap-2 mb-6 p-2 rounded-xl"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+            }}
           >
-            <ArrowLeft size={18} /> Back Home
-          </Link>
-        </div>
-
-        {/* --- MAIN GRID --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
-          {/* LEFT: Image Upload (Span 5) */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="relative border-2 border-dashed border-gray-300 bg-white rounded-3xl h-[420px] flex flex-col items-center justify-center hover:border-emerald-500/50 hover:bg-emerald-50/30 transition-all group overflow-hidden shadow-sm hover:shadow-md">
-              <input
-                type="file"
-                onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
-              {preview ? (
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="text-center p-6 space-y-4">
-                  <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300">
-                    <Upload className="w-8 h-8 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="text-gray-900 font-bold text-lg">
-                      Upload Crop Scan
-                    </p>
-                    <p className="text-gray-400 text-sm">
-                      Drag & drop or click to browse
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              className="p-2 rounded-lg transition-all"
+              style={{
+                background: isRecording
+                  ? "rgba(248,113,113,0.15)"
+                  : "var(--bg-3)",
+                border: `1px solid ${isRecording ? "rgba(248,113,113,0.4)" : "var(--border)"}`,
+                color: isRecording ? "var(--red)" : "var(--text-3)",
+              }}
+            >
+              {isRecording ? <Square size={14} /> : <Mic size={14} />}
+            </button>
+            <input
+              value={textQuery}
+              onChange={(e) => setTextQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleTextQuery()}
+              placeholder="Ask Demeter: 'Show all failed Lettuce crops'…"
+              className="flex-1 bg-transparent border-none outline-none text-sm font-mono px-2"
+              style={{ color: "var(--text)", caretColor: "var(--green)" }}
+            />
+            <button
+              onClick={handleTextQuery}
+              className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+              style={{ background: "var(--green)", color: "#0c1a0e" }}
+            >
+              Ask
+            </button>
           </div>
 
-          {/* RIGHT: Controls (Span 7) */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* Search Bar */}
-            <div className="bg-white p-2 rounded-2xl border border-gray-200 flex gap-2 shadow-sm focus-within:shadow-md transition-shadow">
-              <button
-                onClick={isRecording ? stopRecording : startRecording}
-                className={`p-3 rounded-xl transition-all flex items-center justify-center ${
-                  isRecording
-                    ? "bg-red-50 text-red-500 animate-pulse border border-red-100"
-                    : "bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                }`}
-                title="Voice Search"
+          {/* Main grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Image upload */}
+            <div className="lg:col-span-2">
+              <label
+                className="relative block rounded-2xl overflow-hidden cursor-pointer"
+                style={{
+                  height: 320,
+                  background: "var(--surface)",
+                  border: "2px dashed var(--border)",
+                }}
               >
-                {isRecording ? (
-                  <Square className="w-5 h-5" />
+                <input
+                  type="file"
+                  onChange={handleFile}
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                />
+                {preview ? (
+                  <img
+                    src={preview}
+                    alt="preview"
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <Mic className="w-5 h-5" />
-                )}
-              </button>
-              <input
-                type="text"
-                value={textQuery}
-                onChange={(e) => setTextQuery(e.target.value)}
-                placeholder="Ask Demeter: 'Show me all failed Lettuce crops'..."
-                className="flex-1 bg-transparent border-none outline-none text-gray-700 placeholder-gray-400 px-2 font-medium"
-              />
-              <button
-                onClick={handleTextQuery}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
-              >
-                Ask Agent
-              </button>
-            </div>
-
-            {/* Sensor Inputs Panel */}
-            <div className="bg-white border border-gray-200 rounded-3xl p-8 space-y-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-gray-900 font-bold flex items-center gap-2 text-lg">
-                  <Activity className="w-5 h-5 text-emerald-500" /> Manual
-                  Parameters
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-5">
-                {[
-                  {
-                    label: "pH Level",
-                    name: "pH",
-                    icon: Droplets,
-                    color: "text-emerald-600",
-                    bg: "bg-emerald-50",
-                    type: "number",
-                  },
-                  {
-                    label: "EC (mS/cm)",
-                    name: "EC",
-                    icon: Activity,
-                    color: "text-yellow-600",
-                    bg: "bg-yellow-50",
-                    type: "number",
-                  },
-                  {
-                    label: "Temp (°C)",
-                    name: "temp",
-                    icon: Thermometer,
-                    color: "text-red-600",
-                    bg: "bg-red-50",
-                    type: "number",
-                  },
-                  {
-                    label: "Humidity (%)",
-                    name: "humidity",
-                    icon: Wind,
-                    color: "text-blue-600",
-                    bg: "bg-blue-50",
-                    type: "number",
-                  },
-                  {
-                    label: "Crop",
-                    name: "crop",
-                    icon: Sprout,
-                    color: "text-green-600",
-                    bg: "bg-green-50",
-                    type: "select",
-                    options: [
-                      "Lettuce",
-                      "Tomato",
-                      "Cucumber",
-                      "Basil",
-                      "Spinach",
-                    ],
-                  },
-                  {
-                    label: "Stage",
-                    name: "stage",
-                    icon: Calendar,
-                    color: "text-purple-600",
-                    bg: "bg-purple-50",
-                    type: "select",
-                    options: [
-                      "Seedling",
-                      "Vegetative",
-                      "Flowering",
-                      "Fruiting",
-                    ],
-                  },
-                ].map((field) => (
-                  <div key={field.name} className="space-y-2 group">
-                    <label
-                      className={`text-[11px] font-bold uppercase tracking-wider ${field.color} ml-1`}
+                  <div className="flex flex-col items-center justify-center h-full gap-3 p-6">
+                    <div
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                      style={{
+                        background: "var(--bg-3)",
+                        border: "1px solid var(--border)",
+                      }}
                     >
-                      {field.label}
-                    </label>
-                    <div className="relative">
+                      <Upload size={22} style={{ color: "var(--text-3)" }} />
+                    </div>
+                    <div className="text-center">
                       <div
-                        className={`absolute left-3 top-2.5 w-8 h-8 rounded-lg ${field.bg} flex items-center justify-center z-10`}
+                        className="font-semibold text-sm"
+                        style={{ color: "var(--text-2)" }}
                       >
-                        <field.icon className={`w-4 h-4 ${field.color}`} />
+                        Drop crop image
                       </div>
-                      {field.type === "select" ? (
-                        <select
-                          name={field.name}
-                          value={sensors[field.name]}
-                          onChange={handleInputChange}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-14 pr-4 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition-all text-gray-800 font-bold appearance-none cursor-pointer"
-                        >
-                          {field.options.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          name={field.name}
-                          value={sensors[field.name]}
-                          onChange={handleInputChange}
-                          type="number"
-                          step="0.1"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-14 pr-4 focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none transition-all text-gray-800 font-bold"
-                        />
-                      )}
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: "var(--text-3)" }}
+                      >
+                        PNG, JPG up to 10MB
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+                {/* Overlay gradient */}
+                {preview && (
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background:
+                        "linear-gradient(to top, rgba(12,26,14,0.6) 0%, transparent 60%)",
+                    }}
+                  />
+                )}
+              </label>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+              {/* Action buttons */}
+              <div className="grid grid-cols-2 gap-3 mt-3">
                 <button
                   onClick={handleIngest}
                   disabled={loadingIngest || loadingSearch}
-                  className="py-3.5 bg-gray-100 hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center space-x-2 group"
+                  className="py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-2)",
+                  }}
                 >
                   {loadingIngest ? (
-                    <Activity className="animate-spin w-5 h-5" />
+                    <Activity size={14} className="animate-spin" />
                   ) : (
                     <>
-                      <Save className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 transition-colors" />{" "}
-                      <span>Store Memory</span>
+                      <Save size={14} /> Store
                     </>
                   )}
                 </button>
-
                 <button
                   onClick={handleSearch}
                   disabled={loadingIngest || loadingSearch}
-                  className="py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center space-x-2 group"
+                  className="py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+                  style={{ background: "var(--green)", color: "#0c1a0e" }}
                 >
                   {loadingSearch ? (
-                    <Activity className="animate-spin w-5 h-5" />
+                    <Activity size={14} className="animate-spin" />
                   ) : (
                     <>
-                      <Search className="w-5 h-5" /> <span>Reason & Solve</span>
+                      <Brain size={14} /> Analyze
                     </>
                   )}
                 </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* --- OUTPUT SECTION --- */}
-
-        {/* 1. Decision & Action Grid (Supervisor) */}
-        {decision && (
-          <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="bg-white border border-emerald-100 rounded-3xl overflow-hidden shadow-xl shadow-emerald-500/10">
-              {/* Header with Strategy */}
-              <div className="p-6 border-b border-gray-100 bg-emerald-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <h3 className="text-gray-900 font-bold text-lg flex items-center gap-2">
-                    <div className="bg-emerald-500 text-white p-1.5 rounded-lg">
-                      <Brain size={18} />
+            {/* Sensor inputs */}
+            <div
+              className="lg:col-span-3 rounded-2xl p-5"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div
+                className="text-[10px] font-mono mb-4"
+                style={{ color: "var(--text-3)" }}
+              >
+                // SENSOR PARAMETERS
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {INPUT_FIELDS.map(
+                  ({ label, name, icon: Icon, color, type, opts }) => (
+                    <div key={name}>
+                      <label
+                        className="text-[10px] font-mono mb-1 block"
+                        style={{ color }}
+                      >
+                        {label.toUpperCase()}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
+                          <Icon size={13} style={{ color }} />
+                        </div>
+                        {type === "select" ? (
+                          <div className="relative">
+                            <select
+                              value={sensors[name]}
+                              onChange={(e) =>
+                                setSensors({
+                                  ...sensors,
+                                  [name]: e.target.value,
+                                })
+                              }
+                              className="w-full appearance-none pl-8 pr-8 py-2.5 rounded-lg text-sm font-mono outline-none"
+                              style={{
+                                background: "var(--bg-3)",
+                                border: "1px solid var(--border)",
+                                color: "var(--text)",
+                              }}
+                            >
+                              {opts.map((o) => (
+                                <option key={o} value={o}>
+                                  {o}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown
+                              size={11}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                              style={{ color: "var(--text-3)" }}
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            value={sensors[name]}
+                            onChange={(e) =>
+                              setSensors({ ...sensors, [name]: e.target.value })
+                            }
+                            type="number"
+                            step="0.1"
+                            className="w-full pl-8 pr-3 py-2.5 rounded-lg text-sm font-mono outline-none"
+                            style={{
+                              background: "var(--bg-3)",
+                              border: "1px solid var(--border)",
+                              color: "var(--text)",
+                            }}
+                          />
+                        )}
+                      </div>
                     </div>
-                    Supervisor Command
-                  </h3>
-                  <p className="text-xs font-mono text-emerald-600 mt-1 uppercase tracking-wide">
-                    Active Strategy:{" "}
-                    <span className="font-bold">
-                      {strategy || "ANALYZING..."}
-                    </span>
-                  </p>
-                </div>
+                  ),
+                )}
+              </div>
+            </div>
+          </div>
 
+          {/* Decision output */}
+          {decision && (
+            <div
+              className="mt-6 rounded-2xl overflow-hidden animate-fade-up"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid rgba(74,222,128,0.3)",
+              }}
+            >
+              <div
+                className="p-4 border-b flex items-center justify-between"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "rgba(74,222,128,0.05)",
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Brain size={16} style={{ color: "var(--green)" }} />
+                  <span
+                    className="font-semibold text-sm"
+                    style={{ color: "var(--text)" }}
+                  >
+                    Supervisor Command
+                  </span>
+                </div>
                 <button
                   onClick={() => setShowExplanation(!showExplanation)}
-                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-white border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                  className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1.5 rounded-lg transition-colors"
+                  style={{
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-3)",
+                  }}
                 >
-                  <Search size={12} /> View Logic Trace
+                  <Eye size={11} /> {showExplanation ? "Hide" : "View"} logic
                 </button>
               </div>
 
-              {/* ACTION GRID */}
-              <div className="p-8">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {Object.entries(decision).map(([key, value]) => {
-                    const props = getActionCardProps(key, value);
-                    return (
+              <div className="p-5 grid grid-cols-3 md:grid-cols-5 gap-3">
+                {Object.entries(decision).map(([key, value]) => {
+                  const meta = ACTION_MAP[key] || {
+                    label: key,
+                    icon: Zap,
+                    unit: "",
+                    color: "var(--text-3)",
+                  };
+                  const Icon = meta.icon;
+                  return (
+                    <div
+                      key={key}
+                      className="rounded-xl p-4 text-center"
+                      style={{
+                        background: "var(--bg-3)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
                       <div
-                        key={key}
-                        className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center hover:border-emerald-200 hover:shadow-md transition-all"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2"
+                        style={{ background: `${meta.color}15` }}
                       >
-                        <div
-                          className={`w-10 h-10 rounded-full ${props.bg} flex items-center justify-center mb-3`}
-                        >
-                          <props.icon className={`w-5 h-5 ${props.color}`} />
-                        </div>
-                        <div className="text-2xl font-bold text-gray-800 font-mono mb-1">
-                          {props.value}
-                        </div>
-                        <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                          {props.label}
-                        </div>
+                        <Icon size={14} style={{ color: meta.color }} />
                       </div>
-                    );
-                  })}
-                </div>
+                      <div
+                        className="font-bold font-mono text-xl"
+                        style={{ color: meta.color }}
+                      >
+                        {value}
+                      </div>
+                      <div
+                        className="text-[9px] font-mono mt-0.5"
+                        style={{ color: "var(--text-3)" }}
+                      >
+                        {meta.unit}
+                      </div>
+                      <div
+                        className="text-[10px] mt-1"
+                        style={{ color: "var(--text-3)" }}
+                      >
+                        {meta.label}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Explainer Drawer */}
-              {showExplanation && (
-                <div className="bg-gray-50 p-6 border-t border-gray-200 animate-in slide-in-from-top-2">
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-                    Supervisor Thought Process
-                  </h4>
-                  <div className="text-gray-600 text-sm whitespace-pre-wrap font-mono leading-relaxed bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    {explanationText || "Generating logic trace..."}
+              {showExplanation && explanationText && (
+                <div
+                  className="border-t p-5"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--bg-3)",
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-mono mb-2"
+                    style={{ color: "var(--text-3)" }}
+                  >
+                    // SUPERVISOR REASONING
                   </div>
+                  <pre
+                    className="text-xs font-mono leading-relaxed whitespace-pre-wrap"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {explanationText}
+                  </pre>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 2. Search Results Grid (Fixed for Sensors) */}
-        {searchResults.length > 0 && (
-          <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Database className="w-6 h-6 text-blue-500" />
-                Retrieved Memory Matches
-              </h2>
-              <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
-                {searchResults.length} SIMILAR CASES FOUND
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {searchResults.map((res) => {
-                const sensors = extractSensors(res.payload);
-
-                return (
-                  <div
-                    key={res.id}
-                    className="bg-white border border-gray-200 rounded-2xl hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 transition-all group relative overflow-hidden flex flex-col"
-                  >
-                    {/* Confidence Badge */}
-                    <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-lg z-10">
-                      {(res.score * 100).toFixed(1)}% MATCH
-                    </div>
-
-                    {/* Card Header */}
-                    <div className="p-5 border-b border-gray-100 bg-gray-50/50">
-                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        <Sprout className="w-5 h-5 text-emerald-500" />
-                        {res.payload.crop}
-                      </h3>
-                      <span className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1 block">
-                        {res.payload.stage} Phase
-                      </span>
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="p-5 space-y-4 flex-1">
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <div className="flex items-center gap-2 font-medium">
-                          <Calendar className="w-4 h-4 text-gray-400" /> Date
+          {/* Search results */}
+          {searchResults.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Database size={14} style={{ color: "var(--text-3)" }} />
+                <span
+                  className="text-[11px] font-mono"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  MEMORY MATCHES · {searchResults.length} FOUND
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {searchResults.map((res) => {
+                  const s = extractSensors(res.payload);
+                  return (
+                    <div
+                      key={res.id}
+                      className="rounded-xl p-4 card-hover"
+                      style={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Leaf size={13} style={{ color: "var(--green)" }} />
+                          <span
+                            className="font-semibold text-sm"
+                            style={{ color: "var(--text)" }}
+                          >
+                            {res.payload.crop || "Unknown"}
+                          </span>
                         </div>
-                        <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs">
-                          {res.payload.timestamp
-                            ? new Date(
-                                res.payload.timestamp,
-                              ).toLocaleDateString()
-                            : "N/A"}
+                        <span
+                          className="text-[10px] font-mono px-2 py-0.5 rounded"
+                          style={{
+                            background: "rgba(74,222,128,0.1)",
+                            color: "var(--green)",
+                          }}
+                        >
+                          {((res.score || 1) * 100).toFixed(0)}%
                         </span>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div className="text-center p-2 rounded-lg bg-emerald-50 border border-emerald-100">
-                          <div className="text-[10px] text-emerald-600 font-bold uppercase">
-                            pH Level
+                      <div className="grid grid-cols-2 gap-2">
+                        <div
+                          className="rounded-lg p-2 text-center"
+                          style={{ background: "var(--bg-3)" }}
+                        >
+                          <div
+                            className="text-[9px] font-mono"
+                            style={{ color: "var(--text-3)" }}
+                          >
+                            pH
                           </div>
-                          <div className="text-emerald-800 font-mono font-bold text-lg">
-                            {sensors.ph}
+                          <div
+                            className="font-mono font-bold text-sm"
+                            style={{ color: "var(--green)" }}
+                          >
+                            {s.ph}
                           </div>
                         </div>
-                        <div className="text-center p-2 rounded-lg bg-yellow-50 border border-yellow-100">
-                          <div className="text-[10px] text-yellow-600 font-bold uppercase">
-                            EC Level
+                        <div
+                          className="rounded-lg p-2 text-center"
+                          style={{ background: "var(--bg-3)" }}
+                        >
+                          <div
+                            className="text-[9px] font-mono"
+                            style={{ color: "var(--text-3)" }}
+                          >
+                            EC
                           </div>
-                          <div className="text-yellow-800 font-mono font-bold text-lg">
-                            {sensors.ec}
+                          <div
+                            className="font-mono font-bold text-sm"
+                            style={{ color: "var(--amber)" }}
+                          >
+                            {s.ec}
                           </div>
                         </div>
                       </div>
-
-                      {/* Optional Outcome Section */}
                       {res.payload.outcome && (
-                        <div className="mt-2 text-xs bg-gray-50 p-2 rounded border border-gray-100 text-gray-600 line-clamp-3">
-                          <span className="font-bold text-gray-400 uppercase text-[10px] block mb-1">
-                            Outcome Note:
-                          </span>
-                          {formatOutcome(res.payload.outcome)}
+                        <div
+                          className="mt-2 text-[11px]"
+                          style={{ color: "var(--text-3)" }}
+                        >
+                          {formatOutcome(res.payload.outcome)?.substring(0, 80)}
+                          …
                         </div>
                       )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
