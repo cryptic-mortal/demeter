@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+numpy
+torch
+Pillow
+python-dotenv
+azure-identity
+azure-digitaltwins-core

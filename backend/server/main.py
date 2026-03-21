@@ -1,5 +1,6 @@
 import sys
 import os
+from dotenv import load_dotenv
 
 # --- PATH FIX ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -9,6 +10,11 @@ project_root = os.path.abspath(os.path.join(current_dir, "../../"))
 sys.path.append(project_root)
 agent_root = os.path.abspath(os.path.join(project_root, "agent"))
 sys.path.append(agent_root)
+
+# Load env from root
+env_path = os.path.join(project_root, '.env')
+if os.path.exists(env_path):
+    load_dotenv(env_path)
 # ----------------
 
 from fastapi import FastAPI, UploadFile, File, Form

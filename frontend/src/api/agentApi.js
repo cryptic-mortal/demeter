@@ -4,7 +4,7 @@ import {
   MOCK_DASHBOARD,
 } from "../data/mockData";
 
-const API_URL = "http://localhost:8000";
+const API_URL = process.env.REACT_APP_AGENT_API_URL || "http://localhost:8000";
 
 export const agentService = {
   /**

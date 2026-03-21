@@ -3,12 +3,8 @@
 <a href="https://drive.google.com/file/d/1VAN31mXPaQ7r4Fm8dpzjhgGeeQwvlH-Z/view?usp=drive_link">
   <img src="https://img.shields.io/badge/Demeter-Hydroponic_AI-4CAF50?style=for-the-badge&logo=robot&logoColor=white" alt="Demeter Logo">
 </a>
-<div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python)
-![React](https://img.shields.io/badge/React-19+-61DAFB?style=flat-square&logo=react)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi)
-![Qdrant](https://img.shields.io/badge/Qdrant-Vector_DB-FF6B6B?style=flat-square)
+<div align="center">
 
 **Industrial-grade Multi-Agent System for autonomous hydroponic farming through AI-driven reasoning**
 
@@ -162,16 +158,6 @@ Before installing Demeter, ensure you have:
 - **Git** - [Download](https://git-scm.com/)
 - **Docker Desktop** (for local Qdrant) OR [Qdrant Cloud account](https://cloud.qdrant.io/)
 
-### Required API Keys
-
-| Service     | Environment Variable            | Where to Get                                                          |
-| ----------- | ------------------------------- | --------------------------------------------------------------------- |
-| **Groq**    | `GROQ_API_KEY`                  | [console.groq.com/keys](https://console.groq.com/keys)                |
-| **Qdrant**  | `QDRANT_URL` & `QDRANT_API_KEY` | [cloud.qdrant.io](https://cloud.qdrant.io)                            |
-| **SerpAPI** | `SERPAPI_API_KEY`               | [serpapi.com](https://serpapi.com) (optional)                         |
-| **OpenAI**  | `OPENAI_API_KEY`                | [platform.openai.com](https://platform.openai.com) (optional)         |
-| **Azure**   | See list below                  | [Azure for Students](https://azure.microsoft.com/en-us/free/students) |
-
 ### 1. Clone and Setup
 
 ```bash
@@ -183,34 +169,61 @@ cd demeter
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install Python dependencies
+# Install Core Python dependencies
 pip install -r requirements.txt
+
+# Install Simulator dependencies
+cd simulator
+pip install -r requirements.txt
+cd ..
+
+# Install Backend Node dependencies
+cd backend/node_server
+npm install
+cd ../..
+
+# Install Frontend dependencies
+cd frontend
+npm install
+cd ..
 ```
 
 ### 2. Environment Configuration
 
-Create a `.env` file in the project root:
+Create a **single** `.env` file in the **project root directory**. All components are configured to read from this top-level file automatically.
 
 ```env
-# Required: Azure Services
-AZURE_API_KEY=your_azure_key_here
-AZURE_ENDPOINT=https://msaiunlockedcustomvision-prediction.cognitiveservices.azure.com/
-AZURE_PROJECT_ID=your_azure_project_id_here
-DATASET_FOLDER=your_dataset_here
-AZURE_PREDICTION_KEY=your_azure_predict_key_here
-AZURE_URL=your_azure_url_here
-AZURE_ITERATION_NAME=DemeterDoctor-v1
-
-# Required: AI Provider
-GROQ_API_KEY=gsk_your_key_here
-
-# Required: Vector Database
+# Database
 QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=your_qdrant_key_here
 
-# Optional: Enhanced features
-OPENAI_API_KEY=sk-your_key_here
-SERPAPI_API_KEY=your_serpapi_key_here
+# LLM
+GROQ_API_KEY=gsk_your_key_here
+
+# Simulator
+SIMULATOR_PORT=8001
+SIMULATOR_ACTION_URL=http://localhost:8001/simulation/action
+SIMULATOR_STATE_URL=http://localhost:8001/simulation/state
+ADT_URL=simulator.api.krc.digitaltwins.azure.net
+AZURE_TENANT_ID=your_azure_tenant_id_here
+AZURE_CLIENT_ID=your_service_principal_client_id_here
+AZURE_CLIENT_SECRET=your_service_principal_client_secret_here
+
+# Node Backend
+PORT=3001
+
+# React Frontend
+REACT_APP_AGENT_API_URL=http://localhost:8000
+REACT_APP_FARM_API_URL=http://localhost:3001/api
+
+# Azure Services
+AZURE_API_KEY=your_azure_key_here
+AZURE_ENDPOINT=azure_endpoint_here
+AZURE_PROJECT_ID=your_azure_project_id_here
+DATASET_FOLDER="train"
+AZURE_PREDICTION_KEY=your_azure_predict_key_here
+AZURE_URL=your_azure_url_here
+AZURE_ITERATION_NAME=DemeterDoctor
 ```
 
 ### 3. Start Qdrant Database
@@ -228,40 +241,60 @@ docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
 ### 4. Initialize Database
 
+Run the following command from the root directory to create the required collections and indexes:
+
 ```bash
-# Create required collections and indexes
 python backend/server/create-index.py
 ```
 
-### 5. Start the Agents
+### 5. Start the Simulator
+
+Open a new terminal, activate the virtual environment, and run the Digital Twin Simulator from its directory:
+
+```bash
+cd simulator
+python main.py
+```
+
+### 6. Start the Agents
 
 Download [model_bandit_greedy.pkl](https://drive.google.com/file/d/1spuw3TogZRtP0fYZkYA2Kxz1-CiUzBDA/view?usp=drive_link) and [plant_disease_model.pt](https://drive.google.com/file/d/1NkdGt0CFS7tx4vttp8Tod8ksjDLib8dp/view?usp=drive_link) and place them under `agent/Marl` and `agent/Marl/model` respectively.
 
+Open a new terminal, activate the virtual environment, and start the agent orchestrator from the agent directory:
+
 ```bash
-# Start the main AI agent system
-python agent/main_agent.py
+cd agent
+python main_agent.py
 ```
 
-### 6. Start the Backend
+### 7. Start the Backends
+
+**Python API Server:**
+Open a new terminal, activate the virtual environment, and start the FastAPI server from the backend directory:
 
 ```bash
-# Start the API server
-python backend/server/main.py
+cd backend/server
+python main.py
+```
 
-# In another terminal, start the website backend
+**Node.js Database Server:**
+Open a new terminal and start the Express server for fetching from the memory database:
+
+```bash
 cd backend/node_server
-node index.js
+npm start
 ```
 
-### 7. Run the Frontend
+### 8. Run the Frontend
+
+Open a new terminal, navigate to the frontend directory, and run the development server:
 
 ```bash
 cd frontend
-npm install
-npm run start
+npm start
 ```
 
-### 7. Access the Application
+### 9. Access the Application
 
 - **Frontend**: http://localhost:3000
 - **API Documentation**: http://localhost:8000/docs

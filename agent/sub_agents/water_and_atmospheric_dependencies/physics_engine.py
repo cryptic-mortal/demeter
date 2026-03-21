@@ -4,8 +4,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 # Configuration
-API_KEY = os.environ.get("GROQ_API_KEY1")
-MODEL_ID = "qwen/qwen3-32b" # Using the latest supported Groq model
+API_KEY = os.environ.get("GROQ_API_KEY")
+MODEL_ID = "qwen/qwen3-32b"  # Using the latest supported Groq model
+
 
 def predict_outcome(current_state: dict, proposed_action: dict) -> dict:
     """
@@ -21,10 +22,10 @@ def predict_outcome(current_state: dict, proposed_action: dict) -> dict:
         base_url="https://api.groq.com/openai/v1",
         api_key=API_KEY,
         model=MODEL_ID,
-        temperature=0.1, # Low temp for consistent physics logic
-        max_tokens=1024
+        temperature=0.1,  # Low temp for consistent physics logic
+        max_tokens=1024,
     )
-    
+
     system_prompt = (
         "You are a Hydroponic Physics Engine.\n"
         "Your task is to simulate the biological and chemical reaction of a plant ecosystem "
@@ -43,21 +44,23 @@ def predict_outcome(current_state: dict, proposed_action: dict) -> dict:
 
     try:
         # Invoke Groq
-        response = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt)
-        ])
-        
+        response = llm.invoke(
+            [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
+        )
+
         # Clean and Parse JSON
         content = response.content.replace("```json", "").replace("```", "").strip()
         result = json.loads(content)
-        
+
         # Default fallback keys if the LLM misses them
         return {
             "predicted_health": result.get("predicted_health", 50.0),
-            "risk_warning": result.get("risk_warning", "Unknown Risk")
+            "risk_warning": result.get("risk_warning", "Unknown Risk"),
         }
 
     except Exception as e:
         print(f"   ⚠️ Physics Engine Error: {e}")
-        return {"predicted_health": 70.0, "risk_warning": "Simulation Connection Failed"}
+        return {
+            "predicted_health": 70.0,
+            "risk_warning": "Simulation Connection Failed",
+        }

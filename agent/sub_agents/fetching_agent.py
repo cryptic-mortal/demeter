@@ -4,7 +4,7 @@ import requests
 from pathlib import Path
 
 current_file = Path(__file__).resolve()
-project_root = current_file.parent.parent.parent 
+project_root = current_file.parent.parent.parent
 sys.path.append(str(project_root))
 
 from qdrant_client import models
@@ -12,22 +12,27 @@ from Sentinel.agent import FMUBuilder
 from Qdrant.Store import COLLECTION_NAME
 from Qdrant.Client import client
 
+
 class FetchingAgent:
-    def __init__(self, simulator_url="https://unexhumed-melaine-bouncingly.ngrok-free.dev/simulation/state"):
+    def __init__(self, simulator_url=None):
+        if simulator_url is None:
+            simulator_url = os.environ.get(
+                "SIMULATOR_STATE_URL", "http://localhost:3001/simulation/state"
+            )
         self.sim_url = simulator_url
         self.builder = FMUBuilder()
 
     def fetch_and_process(self):
         print(f"[Fetcher] 📡 Requesting data from {self.sim_url}...")
-        
+
         try:
             response = requests.get(self.sim_url)
-            
+
             if response.status_code == 200:
                 data = response.json()
-                
+
                 window_data = data.get("sensor_window", {})
-                image_b64 = data.get("image", "") 
+                image_b64 = data.get("image", "")
                 raw_meta = data.get("metadata", {})
 
                 print(data)
@@ -38,18 +43,29 @@ class FetchingAgent:
                     from PIL import Image
                     import base64
                     from io import BytesIO
-                    img = Image.new('RGB', (512, 512), (50, 50, 50))
+
+                    img = Image.new("RGB", (512, 512), (50, 50, 50))
                     buf = BytesIO()
                     img.save(buf, format="PNG")
                     image_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-                wanted_keys = {"ph": "pH", "ec": "EC", "humidity": "humidity", "temp": "temp", "air_temp": "temp"}
+                wanted_keys = {
+                    "ph": "pH",
+                    "ec": "EC",
+                    "humidity": "humidity",
+                    "temp": "temp",
+                    "air_temp": "temp",
+                }
                 sensor_snapshot = {}
                 for key, value_list in window_data.items():
                     key_lower = key.lower()
                     if key_lower in wanted_keys:
                         out_name = wanted_keys[key_lower]
-                        val = value_list[-1] if isinstance(value_list, list) and value_list else 0.0
+                        val = (
+                            value_list[-1]
+                            if isinstance(value_list, list) and value_list
+                            else 0.0
+                        )
                         sensor_snapshot[out_name] = val
 
                 crop_id = raw_meta.get("crop_id", "UNKNOWN_CROP")
@@ -61,15 +77,19 @@ class FetchingAgent:
                     "stage": raw_meta.get("stage", "unknown"),
                     "crop_id": crop_id,
                     "sequence_number": next_seq,
-                    "image_b64": image_b64 
+                    "image_b64": image_b64,
                 }
 
-                fmu = self.builder.create_fmu(image_b64, sensor_snapshot, filtered_metadata)
-                
-                print(f"[Fetcher] 🧠 FMU Created (ID: {fmu.id}) - Handing off to Judge.")
-                
+                fmu = self.builder.create_fmu(
+                    image_b64, sensor_snapshot, filtered_metadata
+                )
+
+                print(
+                    f"[Fetcher] 🧠 FMU Created (ID: {fmu.id}) - Handing off to Judge."
+                )
+
                 search_results = self.find_similar_instances(fmu)
-                
+
                 return fmu, sensor_snapshot, search_results, image_b64
             else:
                 print(f"[Fetcher] ❌ Error: Simulator returned {response.status_code}")
@@ -83,9 +103,15 @@ class FetchingAgent:
         """Queries Qdrant for count of existing points for this crop_id."""
         try:
             count_filter = models.Filter(
-                must=[models.FieldCondition(key="crop_id", match=models.MatchValue(value=crop_id))]
+                must=[
+                    models.FieldCondition(
+                        key="crop_id", match=models.MatchValue(value=crop_id)
+                    )
+                ]
             )
-            count_result = client.count(collection_name=COLLECTION_NAME, count_filter=count_filter)
+            count_result = client.count(
+                collection_name=COLLECTION_NAME, count_filter=count_filter
+            )
             return count_result.count + 1
         except Exception:
             return 1
@@ -97,7 +123,7 @@ class FetchingAgent:
                 collection_name=COLLECTION_NAME,
                 query_vector=current_fmu.vector,
                 limit=3,
-                with_payload=True
+                with_payload=True,
             )
             return [{"payload": hit.payload} for hit in hits]
         except Exception:

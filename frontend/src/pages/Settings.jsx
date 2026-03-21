@@ -513,8 +513,8 @@ export default function SettingsPage() {
                     }}
                   >
                     {USE_MOCK_DATA
-                      ? "To connect to live data, open src/data/mockData.js and set USE_MOCK_DATA = false"
-                      : "Connected to http://localhost:3001 — real-time data"}
+                      ? "To connect to live data, set USE_MOCK_DATA = false in src/data/mockData.js"
+                      : `Connected to ${process.env.REACT_APP_FARM_API_URL || "http://localhost:3001/api"}`}
                   </div>
                 </div>
               </div>

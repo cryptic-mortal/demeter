@@ -1,6 +1,7 @@
 import { USE_MOCK_DATA, MOCK_DASHBOARD, MOCK_HISTORY } from "../data/mockData";
 
-const API_BASE_URL = "http://localhost:3001/api";
+const API_BASE_URL =
+  process.env.REACT_APP_FARM_API_URL || "http://localhost:3001/api";
 
 /**
  * Fetches the latest state of all unique crops for the Dashboard.
