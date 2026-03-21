@@ -18,9 +18,9 @@
 
 <div align="center">
 
-| ![System Overview](assets/images/screenshots/system_overview.png) | ![Agent Control](assets/images/screenshots/agent_control.png) | ![Console Log](assets/images/screenshots/console_log.png) |
-| :---------------------------------------------------------------: | :-----------------------------------------------------------: | :-------------------------------------------------------: |
-|      **System Overview**<br/>Real-time monitoring dashboard       |        **Agent Control**<br/>Multi-agent orchestration        |        **Console Log**<br/>AI agent decision logs         |
+| ![System Overview](assets/screenshots/system_overview.png) | ![Agent Control](assets/screenshots/agent_control.png) | ![Console Log](assets/screenshots/console_log.png) |
+| :--------------------------------------------------------: | :----------------------------------------------------: | :------------------------------------------------: |
+|   **System Overview**<br/>Real-time monitoring dashboard   |    **Agent Control**<br/>Multi-agent orchestration     |     **Console Log**<br/>AI agent decision logs     |
 
 </div>
 
@@ -33,7 +33,7 @@
 The system combines **Long-Term Memory**, **Computer Vision**, and **Reinforcement Learning** to optimize crop health in real-time, creating a truly autonomous farming experience.
 
 <div align="center">
-  <img src="assets/images/demeter_dashboard.png" alt="Demeter Dashboard" width="800"/>
+  <img src="assets/screenshots/demeter_dashboard.png" alt="Demeter Dashboard" width="800"/>
   <p><em>Demeter Web Dashboard - Real-time monitoring and control interface</em></p>
 </div>
 
@@ -54,7 +54,7 @@ The system combines **Long-Term Memory**, **Computer Vision**, and **Reinforceme
 Demeter operates on a **Hierarchical Control Loop** powered by **LangGraph**, featuring specialized agents that collaborate to maintain optimal growing conditions:
 
 <div align="center">
-  <img src="assets/images/Fetcher.png" alt="Demeter System Architecture" width="800"/>
+  <img src="assets/architecture.png" alt="Demeter System Architecture" width="800"/>
   <p><em>Demeter Agent Hierarchy - Multi-agent cognitive architecture</em></p>
 </div>
 
@@ -262,7 +262,7 @@ npm run start
 - **Health Check**: http://localhost:8000/health
 
 <div align="center">
-  <img src="assets/images/agent-control.png" alt="Agent Control Interface" width="700"/>
+  <img src="assets/screenshots/agent_control.png" alt="Agent Control Interface" width="700"/>
   <p><em>Agent Control Dashboard - Monitor and interact with AI agents in real-time</em></p>
 </div>
 

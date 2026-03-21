@@ -302,24 +302,8 @@ export default function Alerts() {
           }}
         >
           <div>
-            <h1
-              style={{
-                fontWeight: 700,
-                fontSize: 18,
-                color: "var(--text)",
-                margin: 0,
-              }}
-            >
-              Alerts
-            </h1>
-            <p
-              style={{
-                fontSize: 11,
-                fontFamily: "DM Mono, monospace",
-                color: "var(--text-3)",
-                margin: 0,
-              }}
-            >
+            <h1 className="page-title">Alerts</h1>
+            <p className="page-subtitle">
               {loading
                 ? "Analyzing sensor history…"
                 : `${counts.total} unacknowledged · ${alerts.length} total`}

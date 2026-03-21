@@ -233,7 +233,7 @@ class SupervisorAgent:
     # --- ADVISORY ONLY (Not Enforced) ---
     def get_strategic_goal(self, fmu):
         # (Same as before, but treated as advice now)
-        sensors = fmu.metadata.get('sensor_data', {})
+        sensors = fmu.metadata.get('sensors', {})
         fmu_vector = fmu.vector
         vis_vec1 = np.array(fmu_vector) if isinstance(fmu_vector, list) else fmu_vector
         vis_vec = vis_vec1[:512] if len(vis_vec1) >= 512 else None

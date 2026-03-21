@@ -3,7 +3,7 @@ import shutil
 import json
 import traceback
 import base64
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 from groq import Groq
 from qdrant_client.http import models
 from datetime import datetime
@@ -257,13 +257,16 @@ async def process_search(file: UploadFile, sensors_str: str, builder):
             "new_fmu_id": query_fmu.id,
             "agent_decision": final_decision_json,
             "explanation": explanation_log,
-            "search_results": [{"id": p.id, "score": p.score, "payload": p.payload} for p in points_list],
+            "search_results": [
+                {"id": p.id, "score": p.score, "payload": p.payload}
+                for p in points_list
+            ],
         }
 
     except Exception as e:
         print(f"❌ Pipeline Error: {e}")
         traceback.print_exc()
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         # Cleanup temp file
