@@ -4,29 +4,30 @@ from dotenv import load_dotenv
 
 # --- PATH FIX ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Adjust this depending on where main.py sits relative to the root 'Demeter' folder
-# If main.py is in Demeter/backend/server, root is ../../
+# Adjust this depending on where main.py sits relative to root folder
 project_root = os.path.abspath(os.path.join(current_dir, "../../"))
 sys.path.append(project_root)
 agent_root = os.path.abspath(os.path.join(project_root, "agent"))
 sys.path.append(agent_root)
 
 # Load env from root
-env_path = os.path.join(project_root, '.env')
+env_path = os.path.join(project_root, ".env")
 if os.path.exists(env_path):
     load_dotenv(env_path)
 # ----------------
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from Sentinel.agent import FMUBuilder
 
-# Import the UPDATED logic functions
+# Import the logic functions
 from backend.server.functions import (
     process_ingest,
     process_search,
     process_text_query,
     process_audio_search,
+    process_cycle_stream,
 )
 
 app = FastAPI()
@@ -57,6 +58,16 @@ async def search_endpoint(file: UploadFile = File(...), sensors: str = Form(...)
     return await process_search(file, sensors, builder)
 
 
+@app.post("/run-cycle-stream")
+async def run_cycle_stream_endpoint(
+    file: UploadFile = File(...), sensors: str = Form(...)
+):
+    return StreamingResponse(
+        process_cycle_stream(file, sensors, builder),
+        media_type="text/event-stream",
+    )
+
+
 @app.post("/query-text")
 async def text_query_endpoint(query: str = Form(...)):
     return await process_text_query(query)
@@ -70,5 +81,4 @@ async def audio_query_endpoint(file: UploadFile = File(...)):
 if __name__ == "__main__":
     import uvicorn
 
-    # Using 8002 to avoid conflict with Simulator (8001) and React (3000)
     uvicorn.run(app, host="0.0.0.0", port=8000)

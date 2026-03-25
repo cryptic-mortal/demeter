@@ -6,7 +6,7 @@ import {
   BarChart3,
   Bell,
   Settings,
-  Brain,
+  Sparkles,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -32,7 +32,7 @@ export default function Sidebar() {
     { label: "Crops", icon: LayoutGrid, path: "/dashboard" },
     { label: "Analytics", icon: BarChart3, path: "/analytics" },
     { label: "Alerts", icon: Bell, path: "/alerts", badge: alertCount || null },
-    { label: "Agent Control", icon: Brain, path: "/control" },
+    { label: "Intelligence", icon: Sparkles, path: "/intelligence" },
     { label: "Settings", icon: Settings, path: "/settings" },
   ];
 
@@ -77,11 +77,11 @@ export default function Sidebar() {
             width: 32,
             height: 32,
             borderRadius: 10,
+            flexShrink: 0,
             background: "linear-gradient(135deg, #2d7a44, #4ade80)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            flexShrink: 0,
           }}
         >
           <Leaf size={15} fill="white" color="white" />
@@ -135,7 +135,7 @@ export default function Sidebar() {
         {collapsed ? <ChevronRight size={11} /> : <ChevronLeft size={11} />}
       </button>
 
-      {/* Status pill */}
+      {/* System status pill */}
       {!collapsed && (
         <div style={{ padding: "12px 12px 0" }}>
           <div
@@ -210,7 +210,8 @@ export default function Sidebar() {
               {!collapsed && (
                 <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
               )}
-              {/* Badge — unread count */}
+
+              {/* Badge */}
               {badge && !collapsed && (
                 <span
                   className="alert-pulse"
@@ -246,7 +247,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Alert status summary */}
+      {/* Alert status */}
       {!collapsed && (
         <div style={{ padding: "0 12px 12px" }}>
           <div

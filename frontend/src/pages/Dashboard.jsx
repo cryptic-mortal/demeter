@@ -21,6 +21,7 @@ import {
   Activity,
   ChevronLeft,
   ChevronRight,
+  PlusCircle,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
@@ -269,6 +270,68 @@ function CropCard({ data, onClick }) {
   );
 }
 
+function AddCropCard({ onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      className="card-hover"
+      style={{
+        borderRadius: 16,
+        overflow: "hidden",
+        cursor: "pointer",
+        background: "rgba(74,222,128,0.04)",
+        border: "2px dashed rgba(74,222,128,0.25)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 280,
+        gap: 14,
+        padding: 24,
+        transition: "all 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "rgba(74,222,128,0.5)";
+        e.currentTarget.style.background = "rgba(74,222,128,0.07)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "rgba(74,222,128,0.25)";
+        e.currentTarget.style.background = "rgba(74,222,128,0.04)";
+      }}
+    >
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 16,
+          background: "rgba(74,222,128,0.12)",
+          border: "1px solid rgba(74,222,128,0.3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <PlusCircle size={24} style={{ color: "var(--green)" }} />
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--green)" }}>
+          Add New Crop
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--text-3)",
+            marginTop: 4,
+            fontFamily: "DM Mono, monospace",
+          }}
+        >
+          Start a new cycle · configure sensors
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { dashboard, loading, refreshData } = useFarmData();
@@ -442,10 +505,31 @@ export default function Dashboard() {
             ))}
           </div>
 
+          {/* Add Crop CTA */}
+          <button
+            onClick={() => navigate("/add-crop")}
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              padding: "8px 18px",
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 600,
+              background: "var(--green)",
+              border: "none",
+              color: "#0c1a0e",
+              cursor: "pointer",
+              boxShadow: "0 0 16px rgba(74,222,128,0.2)",
+            }}
+          >
+            <PlusCircle size={15} /> Add Crop
+          </button>
+
           <button
             onClick={refreshData}
             style={{
-              marginLeft: "auto",
               width: 34,
               height: 34,
               borderRadius: 8,
@@ -547,8 +631,7 @@ export default function Dashboard() {
               color: showFilters ? "var(--green)" : "var(--text-2)",
             }}
           >
-            <SlidersHorizontal size={13} />
-            Filters
+            <SlidersHorizontal size={13} /> Filters
             {activeFilters > 0 && (
               <span
                 style={{
@@ -750,6 +833,10 @@ export default function Dashboard() {
                     onClick={() => navigate(`/crop/${crop.id}`)}
                   />
                 ))}
+                {/* Always visible at end of first page */}
+                {page === 1 && (
+                  <AddCropCard onClick={() => navigate("/add-crop")} />
+                )}
               </div>
 
               {/* Pagination */}
@@ -837,43 +924,102 @@ export default function Dashboard() {
                 gap: 16,
               }}
             >
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 16,
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Activity size={24} style={{ color: "var(--text-3)" }} />
-              </div>
-              <div style={{ color: "var(--text-2)", fontSize: 14 }}>
-                No crops match your filters
-              </div>
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setFilterStage("All");
-                  setFilterCrop("All");
-                  setFilterStatus("All");
-                }}
-                style={{
-                  fontSize: 12,
-                  fontFamily: "DM Mono, monospace",
-                  padding: "6px 16px",
-                  borderRadius: 8,
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-3)",
-                  cursor: "pointer",
-                }}
-              >
-                Clear filters
-              </button>
+              {crops.length === 0 ? (
+                <>
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 20,
+                      background: "rgba(74,222,128,0.1)",
+                      border: "1px solid rgba(74,222,128,0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <PlusCircle size={28} style={{ color: "var(--green)" }} />
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 15,
+                        color: "var(--text-2)",
+                      }}
+                    >
+                      No crops yet
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--text-3)",
+                        marginTop: 6,
+                      }}
+                    >
+                      Start by adding your first crop batch
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate("/add-crop")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "10px 22px",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      background: "var(--green)",
+                      border: "none",
+                      color: "#0c1a0e",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <PlusCircle size={15} /> Add Your First Crop
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 16,
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Activity size={24} style={{ color: "var(--text-3)" }} />
+                  </div>
+                  <div style={{ color: "var(--text-2)", fontSize: 14 }}>
+                    No crops match your filters
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSearch("");
+                      setFilterStage("All");
+                      setFilterCrop("All");
+                      setFilterStatus("All");
+                    }}
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "DM Mono, monospace",
+                      padding: "6px 16px",
+                      borderRadius: 8,
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-3)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

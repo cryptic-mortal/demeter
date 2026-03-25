@@ -8,6 +8,7 @@ import {
   Eye,
   Zap,
   Activity,
+  Sparkles,
 } from "lucide-react";
 import { useFarmData } from "../hooks/useFarmData";
 import { extractSensors, deriveCropStatus } from "../utils/dataUtils";
@@ -294,7 +295,7 @@ export default function LandingPage() {
                 />
               </button>
               <button
-                onClick={() => navigate("/control")}
+                onClick={() => navigate("/intelligence")}
                 className="flex items-center gap-3 px-7 py-3.5 rounded-xl font-semibold text-sm transition-all"
                 style={{
                   border: "1px solid var(--border)",
@@ -302,7 +303,7 @@ export default function LandingPage() {
                   background: "var(--surface)",
                 }}
               >
-                <Cpu size={16} /> Agent Control
+                <Sparkles size={16} /> Intelligence
               </button>
             </div>
 

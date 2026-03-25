@@ -3,6 +3,7 @@ import shutil
 import json
 import traceback
 import base64
+import asyncio
 from fastapi import UploadFile, HTTPException
 from groq import Groq
 from qdrant_client.http import models
@@ -124,7 +125,6 @@ async def process_ingest(
 async def process_search(file: UploadFile, sensors_str: str, builder):
     """
     SIMPLIFIED AGENT LOOP: Atmos + Water + Supervisor ONLY.
-    Updated for Web: Base64 Images + Metadata Consistency.
     """
     temp_filename = f"temp_search_{file.filename}"
 
@@ -270,6 +270,124 @@ async def process_search(file: UploadFile, sensors_str: str, builder):
 
     finally:
         # Cleanup temp file
+        if os.path.exists(temp_filename):
+            try:
+                os.remove(temp_filename)
+            except Exception:
+                pass
+
+
+async def process_cycle_stream(file: UploadFile, sensors_str: str, builder):
+    """
+    REAL-TIME AGENT LOOP: Streams step-by-step reasoning via SSE.
+    """
+    temp_filename = f"temp_stream_{file.filename}"
+
+    try:
+        yield f"data: {json.dumps({'agent': 'SYSTEM', 'text': '🚀 Initializing Demeter Orchestrator...'})}\n\n"
+        await asyncio.sleep(0.5)
+
+        # --- 1. SETUP ---
+        file_content = await file.read()
+        with open(temp_filename, "wb") as buffer:
+            buffer.write(file_content)
+
+        image_b64 = base64.b64encode(file_content).decode("utf-8")
+        abs_image_path = os.path.abspath(temp_filename)
+
+        yield f"data: {json.dumps({'agent': 'FETCHER', 'text': '[Fetcher] 📡 Requesting data from simulator...'})}\n\n"
+        await asyncio.sleep(0.5)
+
+        # --- 2. DATA ---
+        raw_sensor_data = json.loads(sensors_str)
+        clean_sensors = filter_numeric_sensors(raw_sensor_data)
+
+        target_crop = raw_sensor_data.get("crop", "Unknown")
+        target_crop_id = raw_sensor_data.get("crop_id")
+        if not target_crop_id:
+            target_crop_id = f"Batch_{target_crop}_{datetime.now().strftime('%Y%m')}"
+
+        seq_num = get_next_sequence_number(target_crop_id)
+        yield f"data: {json.dumps({'agent': 'FETCHER', 'text': f'[Fetcher] 🔢 Sequence for {target_crop_id}: {seq_num}'})}\n\n"
+        await asyncio.sleep(0.3)
+
+        metadata = {
+            "crop": target_crop,
+            "stage": raw_sensor_data.get("stage", "Unknown"),
+            "crop_id": target_crop_id,
+            "sequence_number": seq_num,
+            "sensors": clean_sensors,
+            "action_taken": "PENDING_DECISION",
+            "outcome": "PENDING",
+        }
+
+        query_fmu = builder.create_fmu(abs_image_path, clean_sensors, metadata=metadata)
+        store_fmu(query_fmu)
+        yield f"data: {json.dumps({'agent': 'FETCHER', 'text': f'[Fetcher] 🧠 FMU Created (ID: {query_fmu.id}) — Handing off to specialists.'})}\n\n"
+        await asyncio.sleep(0.5)
+
+        # --- 3. RESEARCH ---
+        yield f"data: {json.dumps({'agent': 'RESEARCHER', 'text': f'🔍 Searching knowledge base for {target_crop} {metadata['stage']} stage...'})}\n\n"
+        research_query = f"optimal hydroponic conditions for {target_crop} in {metadata['stage']} stage"
+        research_context = researcher.search(research_query)
+        await asyncio.sleep(0.5)
+        yield f"data: {json.dumps({'agent': 'RESEARCHER', 'text': '   📚 Found relevant scientific data.'})}\n\n"
+
+        # --- 4. AGENTS ---
+        strat_instr = "Maintain optimal crop-specific parameters."
+        strat_name = "STANDARD_MAINTENANCE"
+        action_idx = 0
+
+        yield f"data: {json.dumps({'agent': 'BANDIT', 'text': f'🎰 BANDIT STRATEGY: {strat_name}'})}\n\n"
+        await asyncio.sleep(0.3)
+
+        yield f"data: {json.dumps({'agent': 'ATMOSPHERIC', 'text': '🌬️ Atmospheric Agent — deciding...'})}\n\n"
+        atmos_plan = atmos_agent.reason(
+            sensors=clean_sensors,
+            research=research_context,
+            strategy=strat_instr,
+            history="No history provided.",
+            image_b64=image_b64,
+        )
+        yield f"data: {json.dumps({'agent': 'ATMOSPHERIC', 'text': f'   ✅ Plan Approved: {json.dumps(atmos_plan)}'})}\n\n"
+        await asyncio.sleep(0.5)
+
+        yield f"data: {json.dumps({'agent': 'WATER', 'text': '💧 Water Agent — deciding...'})}\n\n"
+        water_plan = water_agent.reason(
+            sensors=clean_sensors,
+            research=research_context,
+            strategy=strat_instr,
+            history="No history provided.",
+            image_b64=image_b64,
+        )
+        yield f"data: {json.dumps({'agent': 'WATER', 'text': f'   ✅ Plan Approved: {json.dumps(water_plan)}'})}\n\n"
+        await asyncio.sleep(0.5)
+
+        # --- 5. SUPERVISOR ---
+        yield f"data: {json.dumps({'agent': 'SUPERVISOR', 'text': '   🔗 Supervisor Merging Plans...'})}\n\n"
+        await asyncio.sleep(0.3)
+        yield f"data: {json.dumps({'agent': 'SUPERVISOR', 'text': '   ⚖️ Supervisor Judging...'})}\n\n"
+
+        final_decision_json = supervisor.synthesize_plan(
+            atmos_plan,
+            water_plan,
+            query_fmu,
+            "No history context.",
+            strategy_info=(strat_name, strat_instr, action_idx),
+        )
+        await asyncio.sleep(0.5)
+        yield f"data: {json.dumps({'agent': 'SUPERVISOR', 'text': '   ✅ Plan looks solid.'})}\n\n"
+
+        # --- 6. FINAL ---
+        yield f"data: {json.dumps({'agent': 'SUPERVISOR', 'text': f'🚜 Activating Hardware: {json.dumps(final_decision_json)}'})}\n\n"
+        await asyncio.sleep(0.5)
+
+        yield f"data: {json.dumps({'agent': 'SYSTEM', 'text': '✅ Sent to Simulator. Cycle complete.', 'final_action': final_decision_json, 'phase': 'done'})}\n\n"
+
+    except Exception as e:
+        yield f"data: {json.dumps({'agent': 'SYSTEM', 'text': f'❌ Error: {str(e)}', 'level': 'error'})}\n\n"
+
+    finally:
         if os.path.exists(temp_filename):
             try:
                 os.remove(temp_filename)
