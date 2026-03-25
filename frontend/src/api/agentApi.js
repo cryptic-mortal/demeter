@@ -80,7 +80,7 @@ export const agentService = {
   /**
    * Translates a natural language query into a database filter using LLM
    */
-  async queryText(text) {
+  async queryText(text, cropId = null) {
     if (USE_MOCK_DATA) {
       await new Promise((r) => setTimeout(r, 600));
       return {
@@ -101,7 +101,38 @@ export const agentService = {
 
     const formData = new FormData();
     formData.append("query", text);
+    if (cropId) formData.append("crop_id", cropId);
+
     const res = await fetch(`${API_URL}/query-text`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  },
+
+  /**
+   * Finds cosine-similar crops via Qdrant vector search
+   */
+  async querySimilarCrops(cropId, cropName, payload) {
+    if (USE_MOCK_DATA) {
+      await new Promise((r) => setTimeout(r, 400));
+      return {
+        status: "success",
+        results: MOCK_DASHBOARD.slice(1, 4).map((d, i) => ({
+          id: d.id,
+          score: 0.91 - i * 0.07,
+          payload: d.payload,
+        })),
+      };
+    }
+
+    const formData = new FormData();
+    formData.append("crop_id", cropId);
+    formData.append("crop_name", cropName || "");
+    formData.append("payload", JSON.stringify(payload || {}));
+
+    const res = await fetch(`${API_URL}/query-similar`, {
       method: "POST",
       body: formData,
     });

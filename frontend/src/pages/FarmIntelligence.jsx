@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useEffect } from "react";
+import { useRef, useState, useMemo, useEffect, useCallback } from "react";
 import { useT } from "../hooks/useTranslation";
 import {
   Activity,
@@ -20,6 +20,7 @@ import {
   Leaf,
   X,
   GitBranch,
+  ExternalLink,
 } from "lucide-react";
 import { agentService } from "../api/agentApi";
 import { extractSensors, deriveCropStatus } from "../utils/dataUtils";
@@ -123,7 +124,14 @@ function ThinkingBlock({ text, t }) {
 }
 
 // LLM Answer block
-function LLMAnswerBlock({ answer, thinking, query, cropContext, t, td }) {
+function LLMAnswerBlock({
+  answer,
+  thinking,
+  cropContext,
+  referencedCrops,
+  t,
+  td,
+}) {
   if (!answer) return null;
 
   return (
@@ -134,6 +142,7 @@ function LLMAnswerBlock({ answer, thinking, query, cropContext, t, td }) {
         background: "var(--surface)",
         border: "1px solid rgba(167,139,250,0.25)",
         overflow: "hidden",
+        flexShrink: 0,
       }}
     >
       {/* Header */}
@@ -215,6 +224,53 @@ function LLMAnswerBlock({ answer, thinking, query, cropContext, t, td }) {
         >
           {answer}
         </div>
+
+        {/* Referenced crops inline mention */}
+        {referencedCrops && referencedCrops.length > 0 && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: "8px 12px",
+              borderRadius: 8,
+              background: "rgba(167,139,250,0.06)",
+              border: "1px solid rgba(167,139,250,0.15)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: "DM Mono, monospace",
+                color: "var(--text-3)",
+              }}
+            >
+              <ExternalLink
+                size={9}
+                style={{ display: "inline", marginRight: 4 }}
+              />
+              {t("intel_data_from")}:
+            </span>
+            {referencedCrops.map((c, i) => (
+              <span
+                key={i}
+                style={{
+                  fontSize: 10,
+                  fontFamily: "DM Mono, monospace",
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  background: "rgba(167,139,250,0.12)",
+                  color: "#a78bfa",
+                  border: "1px solid rgba(167,139,250,0.25)",
+                }}
+              >
+                {td(c.crop)} · {c.cropId}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -454,6 +510,22 @@ function InsightCard({ result, idx, t, td }) {
               }}
             >
               {td(p.stage)}
+            </span>
+          )}
+          {result.score !== undefined && result.score < 1 && (
+            <span
+              style={{
+                fontSize: 9,
+                fontFamily: "DM Mono, monospace",
+                color:
+                  result.score > 0.8
+                    ? "var(--green)"
+                    : result.score > 0.6
+                      ? "var(--amber)"
+                      : "var(--text-3)",
+              }}
+            >
+              {t("intel_match", { n: (result.score * 100).toFixed(0) })}
             </span>
           )}
         </div>
@@ -831,6 +903,7 @@ export default function FarmIntelligence() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
   const [relatedCrops, setRelatedCrops] = useState([]);
+  const [referencedCrops, setReferencedCrops] = useState([]);
   const [transcription, setTranscription] = useState("");
   const [hasQueried, setHasQueried] = useState(false);
   const [llmAnswer, setLlmAnswer] = useState("");
@@ -859,31 +932,50 @@ export default function FarmIntelligence() {
     }));
   }, [dashboard, t]);
 
-  const showToast = (msg, type = "success") => {
+  const showToast = useCallback((msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
 
-  const fleetStats = {
-    total: dashboard?.length || 0,
-    healthy: (dashboard || []).filter(
-      (d) => deriveCropStatus(d.payload) === "Healthy",
-    ).length,
-    attention: (dashboard || []).filter(
-      (d) => deriveCropStatus(d.payload) === "Attention",
-    ).length,
-    critical: (dashboard || []).filter(
-      (d) => deriveCropStatus(d.payload) === "Critical",
-    ).length,
-  };
+  const fleetStats = useMemo(
+    () => ({
+      total: dashboard?.length || 0,
+      healthy: (dashboard || []).filter(
+        (d) => deriveCropStatus(d.payload) === "Healthy",
+      ).length,
+      attention: (dashboard || []).filter(
+        (d) => deriveCropStatus(d.payload) === "Attention",
+      ).length,
+      critical: (dashboard || []).filter(
+        (d) => deriveCropStatus(d.payload) === "Critical",
+      ).length,
+    }),
+    [dashboard],
+  );
 
   // Build rich context for LLM
-  const buildLLMContext = (cropCtx) => {
-    if (cropCtx) {
-      // Specific crop context
-      const p = cropCtx.payload || {};
-      const sensors = extractSensors(p);
-      return `CROP CONTEXT:
+  const buildLLMContext = useCallback(
+    (cropCtx, similarCrops = []) => {
+      const allCrops = dashboard || [];
+
+      if (cropCtx) {
+        const p = cropCtx.payload || {};
+        const sensors = extractSensors(p);
+
+        // Build similar crops context section
+        const similarSection =
+          similarCrops.length > 0
+            ? `\nSIMILAR CROPS (cosine similarity via vector search):\n` +
+              similarCrops
+                .map((sc) => {
+                  const sp = sc.payload || {};
+                  const ss = extractSensors(sp);
+                  return `  - ${sp.crop || "?"} (${sp.crop_id || sc.id}): pH=${ss.ph}, EC=${ss.ec}, T=${ss.temp}°, H=${ss.humidity}%, Stage=${sp.stage}, Status=${deriveCropStatus(sp)}, Outcome=${sp.outcome || "Pending"}, Score=${(sc.score * 100).toFixed(0)}%`;
+                })
+                .join("\n")
+            : "";
+
+        return `CROP CONTEXT:
 - Crop: ${p.crop || cropCtx.crop}
 - Batch ID: ${p.crop_id || cropCtx.cropId}
 - Growth Stage: ${p.stage || "Unknown"}
@@ -900,116 +992,177 @@ LATEST AGENT DECISION:
 - Reward Score: ${p.reward_score ?? "N/A"}
 - Strategic Intent: ${p.strategic_intent || "N/A"}
 EXPLANATION LOG:
-${p.explanation_log && p.explanation_log !== "PENDING_ANALYSIS" ? p.explanation_log : "Not yet generated."}
+${p.explanation_log && p.explanation_log !== "PENDING_ANALYSIS" ? p.explanation_log : "Not yet generated."}${similarSection}
 FLEET OVERVIEW (for comparison):
 - Total crops: ${fleetStats.total}
 - Healthy: ${fleetStats.healthy}, Needs Attention: ${fleetStats.attention}, Critical: ${fleetStats.critical}`.trim();
-    } else {
-      // Fleet-wide context
-      const cropSummaries = (dashboard || [])
-        .slice(0, 10)
-        .map((d) => {
-          const p = d.payload || {};
-          const s = extractSensors(p);
-          return `  - ${p.crop || "?"} (${p.crop_id || d.id}): Stage=${p.stage}, pH=${s.ph}, EC=${s.ec}, Status=${deriveCropStatus(p)}, Outcome=${p.outcome || "Pending"}`;
-        })
-        .join("\n");
-      return `FLEET OVERVIEW:
+      } else {
+        // Fleet-wide: pass ALL crops (capped at 20 for prompt size)
+        const cropSummaries = allCrops
+          .slice(0, 20)
+          .map((d) => {
+            const p = d.payload || {};
+            const s = extractSensors(p);
+            return `  - ${p.crop || "?"} (${p.crop_id || d.id}): Stage=${p.stage}, pH=${s.ph}, EC=${s.ec}, T=${s.temp}°, H=${s.humidity}%, Status=${deriveCropStatus(p)}, Outcome=${p.outcome || "Pending"}, Action=${p.action_taken || "Pending"}`;
+          })
+          .join("\n");
+        return `FLEET OVERVIEW:
 - Total crops: ${fleetStats.total}
 - Healthy: ${fleetStats.healthy}, Needs Attention: ${fleetStats.attention}, Critical: ${fleetStats.critical}
-CURRENT CROPS:
+ALL CROPS (${allCrops.length} total):
 ${cropSummaries || "No crops in database."}
 SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
-    }
-  };
+      }
+    },
+    [dashboard, fleetStats],
+  );
 
   // Ask LLM
-  const handleAsk = async (q) => {
-    const query = q || textQuery;
-    if (!query.trim()) return;
-    setLoading(true);
-    setHasQueried(true);
-    setTextQuery(query);
-    setLlmAnswer("");
-    setLlmThinking("");
-    setResults([]);
-    setRelatedCrops([]);
+  const handleAsk = useCallback(
+    async (q) => {
+      const query = q || textQuery;
+      if (!query.trim()) return;
+      setLoading(true);
+      setHasQueried(true);
+      setTextQuery(query);
+      setLlmAnswer("");
+      setLlmThinking("");
+      setResults([]);
+      setRelatedCrops([]);
+      setReferencedCrops([]);
+      setTranscription("");
 
-    try {
-      const context = buildLLMContext(selectedCrop);
-      const data = await agentService.askDemeter(query, context, lang);
+      try {
+        let similarCrops = [];
 
-      setLlmThinking(data.thinking || "");
-      setLlmAnswer(data.answer || t("intel_no_response"));
-
-      // Also run a search to show related crops
-      if (selectedCrop) {
-        // For specific crop, show similar crops via vector search
-        try {
-          const searchData = await agentService.queryText(selectedCrop.crop);
-          if (searchData.results) {
-            setRelatedCrops(
-              searchData.results
+        if (selectedCrop) {
+          // Use Qdrant vector search to find cosine-similar crops
+          try {
+            const searchData = await agentService.querySimilarCrops(
+              selectedCrop.cropId,
+              selectedCrop.crop,
+              selectedCrop.payload,
+            );
+            if (searchData.results) {
+              similarCrops = searchData.results
                 .filter((r) => r.payload?.crop_id !== selectedCrop.cropId)
-                .slice(0, 3)
+                .slice(0, 5)
                 .map((r) => ({
                   id: r.id,
-                  score: r.score || 0.85,
+                  score: r.score || 0,
                   payload: r.payload,
-                })),
-            );
+                }));
+              setRelatedCrops(similarCrops.slice(0, 3));
+            }
+          } catch (e) {
+            console.warn("Similar crop search failed:", e);
           }
-        } catch {}
+        }
+
+        const context = buildLLMContext(selectedCrop, similarCrops);
+        const data = await agentService.askDemeter(query, context, lang);
+
+        setLlmThinking(data.thinking || "");
+        setLlmAnswer(data.answer || t("intel_no_response"));
+
+        // Parse which crops the answer references (by crop_id mentioned in answer)
+        if (!selectedCrop && data.answer) {
+          const mentioned = cropList.filter(
+            (c) =>
+              data.answer.toLowerCase().includes(c.crop.toLowerCase()) ||
+              data.answer.includes(c.cropId),
+          );
+          if (mentioned.length > 0) {
+            setReferencedCrops(mentioned.slice(0, 6));
+          }
+        }
+      } catch (e) {
+        console.error(e);
+        showToast(t("intel_llm_fail_toast"), "error");
+        setLlmAnswer(t("intel_llm_fail"));
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-      showToast(t("intel_llm_fail_toast"), "error");
-      setLlmAnswer(t("intel_llm_fail"));
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [textQuery, selectedCrop, cropList, buildLLMContext, lang, showToast, t],
+  );
 
-  // Search (Qdrant filter)
-  const handleSearch = async (q) => {
-    const query = q || textQuery;
-    if (!query.trim()) return;
-    setLoading(true);
-    setHasQueried(true);
-    setTextQuery(query);
-    setResults([]);
-    setLlmAnswer("");
-    setLlmThinking("");
-    setRelatedCrops([]);
-    setQueryLogic("");
+  // Search
+  const handleSearch = useCallback(
+    async (q) => {
+      const query = q || textQuery;
+      if (!query.trim()) return;
+      setLoading(true);
+      setHasQueried(true);
+      setTextQuery(query);
+      setResults([]);
+      setLlmAnswer("");
+      setLlmThinking("");
+      setRelatedCrops([]);
+      setReferencedCrops([]);
+      setQueryLogic("");
+      setTranscription("");
 
-    try {
-      const data = await agentService.queryText(query);
-      if (data.results) {
-        setResults(
-          data.results.map((r) => ({
-            id: r.id,
-            score: r.score || 1,
-            payload: r.payload,
-          })),
-        );
+      try {
+        // Build the search payload — include selectedCrop context so backend
+        // can bias Qdrant filter results toward that crop's embedding
+        const data = await agentService.queryText(query, selectedCrop?.cropId);
+
+        if (data.results) {
+          setResults(
+            data.results.map((r) => ({
+              id: r.id,
+              score: r.score || 1,
+              payload: r.payload,
+            })),
+          );
+        }
+
+        if (data.query_logic)
+          setQueryLogic(JSON.stringify(data.query_logic, null, 2));
+
+        // If a crop is selected, also show cosine-similar crops in a sidebar section
+        if (selectedCrop) {
+          try {
+            const simData = await agentService.querySimilarCrops(
+              selectedCrop.cropId,
+              selectedCrop.crop,
+              selectedCrop.payload,
+            );
+            if (simData.results) {
+              setRelatedCrops(
+                simData.results
+                  .filter((r) => r.payload?.crop_id !== selectedCrop.cropId)
+                  .slice(0, 3)
+                  .map((r) => ({
+                    id: r.id,
+                    score: r.score || 0,
+                    payload: r.payload,
+                  })),
+              );
+            }
+          } catch (e) {
+            console.warn("Similar crop search failed:", e);
+          }
+        }
+      } catch {
+        showToast(t("intel_search_fail_toast"), "error");
+      } finally {
+        setLoading(false);
       }
-      // Show query interpretation if available
-      if (data.query_logic)
-        setQueryLogic(JSON.stringify(data.query_logic, null, 2));
-    } catch {
-      showToast(t("intel_search_fail_toast"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [textQuery, selectedCrop, showToast, t],
+  );
 
-  const handleQuery = (q) => {
-    if (mode === "ask") return handleAsk(q);
-    return handleSearch(q);
-  };
+  const handleQuery = useCallback(
+    (q) => {
+      if (mode === "ask") return handleAsk(q);
+      return handleSearch(q);
+    },
+    [mode, handleAsk, handleSearch],
+  );
 
-  // Voice
+  // Voice recording
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1027,10 +1180,12 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
             setTranscription(data.transcription);
             setTextQuery(data.transcription);
 
+            // In ask mode: hand off transcription to ask handler
             if (mode === "ask") {
               await handleAsk(data.transcription);
             } else {
-              if (data.results) {
+              // In search mode: if backend returned results use them, else re-query
+              if (data.results && data.results.length > 0) {
                 setResults(
                   data.results.map((r) => ({
                     id: r.id,
@@ -1038,14 +1193,19 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
                     payload: r.payload,
                   })),
                 );
+                if (data.query_logic)
+                  setQueryLogic(JSON.stringify(data.query_logic, null, 2));
                 setHasQueried(true);
+              } else {
+                // Fallback: run text search with the transcription
+                await handleSearch(data.transcription);
               }
             }
           }
         } finally {
           setLoading(false);
         }
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((trk) => trk.stop());
       };
       mediaRecorderRef.current.start();
       setIsRecording(true);
@@ -1059,6 +1219,12 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
+  };
+
+  // Clear transcription banner when user manually types
+  const handleInputChange = (e) => {
+    setTextQuery(e.target.value);
+    if (transcription) setTranscription("");
   };
 
   const suggestions = selectedCrop
@@ -1164,6 +1330,9 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
                   setResults([]);
                   setLlmAnswer("");
                   setLlmThinking("");
+                  setRelatedCrops([]);
+                  setReferencedCrops([]);
+                  setQueryLogic("");
                 }}
                 style={{
                   display: "flex",
@@ -1247,8 +1416,23 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
               <CropSelector
                 crops={cropList}
                 selectedCrop={selectedCrop}
-                onSelect={setSelectedCrop}
-                onClear={() => setSelectedCrop(null)}
+                onSelect={(c) => {
+                  setSelectedCrop(c);
+                  // Reset results so user re-queries with crop context
+                  setHasQueried(false);
+                  setResults([]);
+                  setLlmAnswer("");
+                  setRelatedCrops([]);
+                  setReferencedCrops([]);
+                }}
+                onClear={() => {
+                  setSelectedCrop(null);
+                  setHasQueried(false);
+                  setResults([]);
+                  setLlmAnswer("");
+                  setRelatedCrops([]);
+                  setReferencedCrops([]);
+                }}
                 t={t}
                 td={td}
               />
@@ -1288,7 +1472,7 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
 
               <input
                 value={textQuery}
-                onChange={(e) => setTextQuery(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={(e) => e.key === "Enter" && handleQuery()}
                 placeholder={
                   mode === "ask"
@@ -1297,7 +1481,11 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
                           crop: td(selectedCrop.crop),
                         })
                       : t("intel_ask_placeholder_fleet")
-                    : t("intel_search_placeholder")
+                    : selectedCrop
+                      ? t("intel_search_placeholder_crop", {
+                          crop: td(selectedCrop.crop),
+                        }) || t("intel_search_placeholder")
+                      : t("intel_search_placeholder")
                 }
                 style={{
                   flex: 1,
@@ -1313,7 +1501,10 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
 
               {textQuery && (
                 <button
-                  onClick={() => setTextQuery("")}
+                  onClick={() => {
+                    setTextQuery("");
+                    setTranscription("");
+                  }}
                   style={{
                     background: "none",
                     border: "none",
@@ -1369,8 +1560,8 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
             </div>
           </div>
 
-          {/* Transcription */}
-          {transcription && (
+          {/* Transcription banner */}
+          {transcription && !loading && (
             <div
               className="animate-fade-in"
               style={{
@@ -1381,9 +1572,26 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
                 fontSize: 12,
                 fontFamily: "DM Mono, monospace",
                 color: "#a78bfa",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
               }}
             >
-              🎙 Heard: "{transcription}"
+              <span style={{ flex: 1 }}>🎙 Heard: "{transcription}"</span>
+              <button
+                onClick={() => setTranscription("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "rgba(167,139,250,0.6)",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: 0,
+                }}
+              >
+                <X size={11} />
+              </button>
             </div>
           )}
 
@@ -1499,13 +1707,13 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
                   <LLMAnswerBlock
                     answer={llmAnswer}
                     thinking={llmThinking}
-                    query={textQuery}
                     cropContext={selectedCrop}
+                    referencedCrops={referencedCrops}
                     t={t}
                     td={td}
                   />
 
-                  {/* Related crops */}
+                  {/* Similar crops */}
                   {relatedCrops.length > 0 && (
                     <div>
                       <div
@@ -1604,6 +1812,7 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
                       </pre>
                     </div>
                   )}
+
                   {results.length === 0 ? (
                     <div
                       style={{
@@ -1638,24 +1847,60 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
                       </button>
                     </div>
                   ) : (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fill, minmax(320px,1fr))",
-                        gap: 14,
-                      }}
-                    >
-                      {results.map((r, i) => (
-                        <InsightCard
-                          key={r.id}
-                          result={r}
-                          idx={i}
-                          t={t}
-                          td={td}
-                        />
-                      ))}
-                    </div>
+                    <>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(320px,1fr))",
+                          gap: 14,
+                        }}
+                      >
+                        {results.map((r, i) => (
+                          <InsightCard
+                            key={r.id}
+                            result={r}
+                            idx={i}
+                            t={t}
+                            td={td}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Similar crops section below search results when crop selected */}
+                      {relatedCrops.length > 0 && selectedCrop && (
+                        <div>
+                          <div
+                            className="section-label"
+                            style={{ marginBottom: 10 }}
+                          >
+                            <GitBranch
+                              size={10}
+                              style={{ display: "inline", marginRight: 5 }}
+                            />
+                            {t("intel_similar_crops")} · {td(selectedCrop.crop)}
+                          </div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns:
+                                "repeat(auto-fill, minmax(260px,1fr))",
+                              gap: 12,
+                            }}
+                          >
+                            {relatedCrops.map((r, i) => (
+                              <RelatedCropCard
+                                key={r.id || i}
+                                item={r}
+                                score={r.score}
+                                t={t}
+                                td={td}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}

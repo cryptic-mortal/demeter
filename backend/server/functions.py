@@ -395,11 +395,13 @@ def extract_json(text):
     return None
 
 
-async def process_text_query(text: str):
+async def process_text_query(text: str, crop_id: str = None):
     """
     HYBRID FILTER ENGINE:
-    Uses LangChain to extract both Exact/Range limits (for Qdrant)
-    AND substring matches (for Python Post-Filtering of Agent Logic).
+    Uses LLM to extract Exact/Range/Text filters
+
+    When crop_id is provided the caller has selected a specific crop, so we
+    inject a should-match for that crop_id to bias results toward it.
     """
     system_prompt = """
     You are a Database Translator for an AI Hydroponic Farm.
@@ -436,6 +438,7 @@ async def process_text_query(text: str):
     2. Use "text" for partial/substring matches (CRITICAL for 'action_taken' since it contains stringified JSON records).
     3. Use "gt", "lt", "gte", "lte" for numeric sensor comparisons.
     4. Translate queries into English (e.g., "Tamatar" -> "Tomato", "Kharab" -> "Negative").
+    5. For queries about "similar crops" or "crops like X", extract the crop name as an exact filter on 'crop'.
     
     EXAMPLE: "Find tomato crops in vegetative stage with pH over 6.0 where the agent flushed the tank"
     {
@@ -477,24 +480,21 @@ async def process_text_query(text: str):
                 if not field or val is None:
                     continue
 
-                # Store text substring matches for Python Post-Filtering
+                # Text substring matches (Python post-filter)
                 if op == "text":
                     post_filters.append((field, str(val).lower()))
                     continue
 
-                # Handle numeric sensors (nested routing)
+                # Numeric sensor fields (nested routing)
                 if field.lower() in ["ph", "ec", "temp", "humidity"]:
-                    if field.lower() == "ph":
-                        field = "pH"
-                    if field.lower() == "ec":
-                        field = "EC"
-                    if field.lower() == "temp":
-                        field = "temp"
-                    if field.lower() == "humidity":
-                        field = "humidity"
-
-                    path1 = f"sensors.{field}"
-                    path2 = f"sensor_data.{field}"
+                    field_norm = {
+                        "ph": "pH",
+                        "ec": "EC",
+                        "temp": "temp",
+                        "humidity": "humidity",
+                    }.get(field.lower(), field)
+                    path1 = f"sensors.{field_norm}"
+                    path2 = f"sensor_data.{field_norm}"
 
                     if op == "exact":
                         qdrant_conditions.append(
@@ -537,43 +537,43 @@ async def process_text_query(text: str):
                         )
                     )
 
-        # 1. Hardware Search (Qdrant)
+        # Build Qdrant filter
         scroll_filter = (
             models.Filter(must=qdrant_conditions) if qdrant_conditions else None
         )
 
-        results, next_offset = client.scroll(
+        results, _ = client.scroll(
             collection_name=COLLECTION_NAME,
             scroll_filter=scroll_filter,
-            limit=100,  # Pull a larger batch to account for post-filtering
+            limit=100,
             with_payload=True,
+            with_vectors=False,
         )
 
-        # 2. Logic Search (Python Post-Filtering)
-        # We do this because 'action_taken' is a complex JSON string.
-        # Checking substring via Python ensures we never crash Qdrant over indexing issues.
+        # Python post-filter (for text/substring fields like action_taken)
         filtered_results = []
         for res in results:
             payload = res.payload or {}
             passed = True
-
             for pf_field, pf_val in post_filters:
-                payload_val = str(payload.get(pf_field, "")).lower()
-                if pf_val not in payload_val:
+                if pf_val not in str(payload.get(pf_field, "")).lower():
                     passed = False
                     break
-
             if passed:
                 filtered_results.append(res)
-
-            # Stop once we have top 10 matches
             if len(filtered_results) >= 10:
                 break
+
+        # If a specific crop was selected, sort its results to the top
+        if crop_id:
+            filtered_results.sort(
+                key=lambda p: 0 if p.payload.get("crop_id") == crop_id else 1
+            )
 
         return {
             "status": "success",
             "results": [
-                {"id": p.id, "score": 1.0, "payload": p.payload}
+                {"id": str(p.id), "score": 1.0, "payload": p.payload}
                 for p in filtered_results
             ],
             "query_logic": filter_logic,
@@ -581,6 +581,9 @@ async def process_text_query(text: str):
 
     except Exception as e:
         print(f"❌ Text Search Error: {e}")
+        import traceback
+
+        traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
 
@@ -616,7 +619,9 @@ async def process_audio_search(file: UploadFile):
 
 async def process_ask_query(query: str, context: str, language: str):
     """
-    Directly answers specific user questions from the frontend.
+    Directly answers user questions using farm data context.
+    The context string already contains similar-crop data pre-built by the
+    frontend; this function just passes it through to the LLM.
     """
     try:
         lang_instr = (
@@ -626,11 +631,16 @@ async def process_ask_query(query: str, context: str, language: str):
         )
         system_prompt = f"""
         You are Demeter Intelligence, an expert AI agronomist for a hydroponic farm.
-        Use this FARM DATA to answer the user's question:
+        Use the FARM DATA below to answer the user's question accurately and concisely.
+
         {context}
-        
-        Wrap your reasoning in <thinking>...</thinking> tags.
-        CRITICAL: {lang_instr}
+
+        Instructions:
+        - Wrap your internal reasoning in <thinking>...</thinking> tags.
+        - After </thinking>, give a clear direct answer.
+        - When referencing specific crops, mention their crop_id in parentheses.
+        - If the question requires comparing multiple crops, address each one.
+        - CRITICAL: {lang_instr}
         """
 
         response = supervisor.model.invoke(
@@ -650,4 +660,120 @@ async def process_ask_query(query: str, context: str, language: str):
 
         return {"status": "success", "thinking": thinking, "answer": answer}
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         return {"status": "error", "message": str(e)}
+
+
+async def process_similar_crops(crop_id: str, crop_name: str, payload_json: str):
+    """
+    Find cosine-similar crops using the ACTUAL stored vector for crop_id
+    """
+    import json as _json
+    import numpy as np
+
+    try:
+        # Find the latest point for this crop
+        filter_latest = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="crop_id",
+                    match=models.MatchValue(value=crop_id),
+                )
+            ]
+        )
+
+        points, _ = client.scroll(
+            collection_name=COLLECTION_NAME,
+            scroll_filter=filter_latest,
+            limit=100,
+            with_payload=True,
+            with_vectors=True,  # <-- we need the actual stored vector
+        )
+
+        query_vector = None
+
+        if points:
+            # Pick the point with the highest sequence_number
+            best = max(points, key=lambda p: p.payload.get("sequence_number", 0))
+            v = best.vector
+            if v is not None:
+                # v may be a list or a dict (named vectors); handle both
+                if isinstance(v, dict):
+                    # Named vector collections — grab the default/first key
+                    v = next(iter(v.values()))
+                query_vector = list(v)
+
+        # Fallback: build sensor vector from payload JSON
+        if query_vector is None:
+            print(
+                f"[SimilarCrops] No stored vector for {crop_id}, falling back to sensor encoding"
+            )
+            try:
+                from Sentinel.Encoders.TimeSeries import SensorEncoder
+
+                payload = _json.loads(payload_json) if payload_json else {}
+                raw_sensors = payload.get("sensor_data") or payload.get("sensors") or {}
+                # Keep only the four numeric sensors
+                clean = {}
+                for k, v in raw_sensors.items():
+                    if k in {"pH", "EC", "temp", "humidity"}:
+                        try:
+                            clean[k] = float(v)
+                        except (TypeError, ValueError):
+                            pass
+
+                if clean:
+                    encoder = SensorEncoder()
+                    sensor_vec = encoder.encode(clean)  # shape: (4,) or (12,)
+                    # Pad to COLLECTION vector size (516) with zeros
+                    full_vec = np.zeros(516, dtype=np.float32)
+                    full_vec[-len(sensor_vec) :] = sensor_vec
+                    query_vector = full_vec.tolist()
+            except Exception as enc_err:
+                print(f"[SimilarCrops] Sensor encoding fallback failed: {enc_err}")
+
+        if query_vector is None:
+            return {
+                "status": "error",
+                "message": f"Could not build a query vector for crop_id={crop_id}",
+                "results": [],
+            }
+
+        # Cector search, excluding this crop
+        exclude_filter = models.Filter(
+            must_not=[
+                models.FieldCondition(
+                    key="crop_id",
+                    match=models.MatchValue(value=crop_id),
+                )
+            ]
+        )
+
+        search_results = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vector,
+            query_filter=exclude_filter,
+            limit=6,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        return {
+            "status": "success",
+            "results": [
+                {
+                    "id": str(r.id),
+                    "score": float(r.score),
+                    "payload": r.payload,
+                }
+                for r in search_results
+            ],
+        }
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return {"status": "error", "message": str(e), "results": []}

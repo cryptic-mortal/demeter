@@ -31,6 +31,7 @@ from backend.server.functions import (
     process_audio_search,
     process_cycle_stream,
     process_ask_query,
+    process_similar_crops,
 )
 
 app = FastAPI()
@@ -73,8 +74,20 @@ async def run_cycle_stream_endpoint(
 
 
 @app.post("/query-text")
-async def text_query_endpoint(query: str = Form(...)):
-    return await process_text_query(query)
+async def text_query_endpoint(
+    query: str = Form(...),
+    crop_id: str = Form(None),  # optional
+):
+    return await process_text_query(query, crop_id)
+
+
+@app.post("/query-similar")
+async def similar_crops_endpoint(
+    crop_id: str = Form(...),
+    crop_name: str = Form(...),
+    payload: str = Form(...),
+):
+    return await process_similar_crops(crop_id, crop_name, payload)
 
 
 @app.post("/query-audio")
