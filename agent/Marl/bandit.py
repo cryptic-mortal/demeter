@@ -48,7 +48,7 @@ class ContextualBandit:
             # 2. Expected Reward (Dot Product)
             # This is the "Best Guess" for how good this action is.
 
-            print(f"Action {a}: Theta shape: {theta.shape}, Context shape: {context_vector.shape}")
+        #    print(f"Action {a}: Theta shape: {theta.shape}, Context shape: {context_vector.shape}")
             pred = theta.dot(context_vector)
             predicted_rewards[a] = pred
             

@@ -253,7 +253,7 @@ class SupervisorAgent:
         ])
         context_vector = np.concatenate([vis_vec, s_vec])
 
-        print("Context Vector for Bandit:", context_vector.shape)
+      #  print("Context Vector for Bandit:", context_vector.shape)
         
         action_idx, _ = self.bandit.select_action(context_vector)
         strategy_name = STRATEGIES[action_idx]

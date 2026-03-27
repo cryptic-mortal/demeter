@@ -2,6 +2,9 @@ import sys
 import os
 import requests
 from pathlib import Path
+import base64
+from io import BytesIO
+from PIL import Image
 
 current_file = Path(__file__).resolve()
 project_root = current_file.parent.parent.parent
@@ -12,12 +15,11 @@ from Sentinel.agent import FMUBuilder
 from Qdrant.Store import COLLECTION_NAME
 from Qdrant.Client import client
 
-
 class FetchingAgent:
     def __init__(self, simulator_url=None):
         if simulator_url is None:
             simulator_url = os.environ.get(
-                "SIMULATOR_STATE_URL", "http://localhost:3001/simulation/state"
+                "SIMULATOR_STATE_URL", "http://localhost:8001/simulation/state"
             )
         self.sim_url = simulator_url
         self.builder = FMUBuilder()
@@ -29,78 +31,78 @@ class FetchingAgent:
             response = requests.get(self.sim_url)
 
             if response.status_code == 200:
-                data = response.json()
+                data_list = response.json()
+                
+                if not isinstance(data_list, list):
+                    data_list = [data_list]
 
-                window_data = data.get("sensor_window", {})
-                image_b64 = data.get("image", "")
-                raw_meta = data.get("metadata", {})
+                processed_crops = []
 
-                print(data)
+                for data in data_list:
+                    window_data = data.get("sensor_window", {})
+                    image_b64 = data.get("image", "")
+                    raw_meta = data.get("metadata", {})
 
-                print("Rawmeta received: ", raw_meta)
+                    if not image_b64:
+                        img = Image.new("RGB", (512, 512), (50, 50, 50))
+                        buf = BytesIO()
+                        img.save(buf, format="PNG")
+                        image_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-                if not image_b64:
-                    from PIL import Image
-                    import base64
-                    from io import BytesIO
+                    wanted_keys = {
+                        "ph": "pH",
+                        "ec": "EC",
+                        "humidity": "humidity",
+                        "temp": "temp",
+                        "air_temp": "temp",
+                    }
+                    sensor_snapshot = {}
+                    for key, value_list in window_data.items():
+                        key_lower = key.lower()
+                        if key_lower in wanted_keys:
+                            out_name = wanted_keys[key_lower]
+                            val = (
+                                value_list[-1]
+                                if isinstance(value_list, list) and value_list
+                                else 0.0
+                            )
+                            sensor_snapshot[out_name] = val
 
-                    img = Image.new("RGB", (512, 512), (50, 50, 50))
-                    buf = BytesIO()
-                    img.save(buf, format="PNG")
-                    image_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                    crop_id = raw_meta.get("crop_id", data.get("crop_id", "UNKNOWN_CROP"))
+                    next_seq = self._get_next_sequence(crop_id)
 
-                wanted_keys = {
-                    "ph": "pH",
-                    "ec": "EC",
-                    "humidity": "humidity",
-                    "temp": "temp",
-                    "air_temp": "temp",
-                }
-                sensor_snapshot = {}
-                for key, value_list in window_data.items():
-                    key_lower = key.lower()
-                    if key_lower in wanted_keys:
-                        out_name = wanted_keys[key_lower]
-                        val = (
-                            value_list[-1]
-                            if isinstance(value_list, list) and value_list
-                            else 0.0
-                        )
-                        sensor_snapshot[out_name] = val
+                    filtered_metadata = {
+                        "crop": raw_meta.get("crop", "unknown"),
+                        "stage": raw_meta.get("stage", "unknown"),
+                        "crop_id": crop_id,
+                        "sequence_number": next_seq,
+                        "image_b64": image_b64,
+                    }
 
-                crop_id = raw_meta.get("crop_id", "UNKNOWN_CROP")
-                next_seq = self._get_next_sequence(crop_id)
-                print(f"[Fetcher] 🔢 Sequence for {crop_id}: {next_seq}")
+                    fmu = self.builder.create_fmu(
+                        image_b64, sensor_snapshot, filtered_metadata
+                    )
 
-                filtered_metadata = {
-                    "crop": raw_meta.get("crop", "unknown"),
-                    "stage": raw_meta.get("stage", "unknown"),
-                    "crop_id": crop_id,
-                    "sequence_number": next_seq,
-                    "image_b64": image_b64,
-                }
+                    search_results = self.find_similar_instances(fmu)
 
-                fmu = self.builder.create_fmu(
-                    image_b64, sensor_snapshot, filtered_metadata
-                )
+                    processed_crops.append({
+                        "crop_id": crop_id,
+                        "fmu": fmu,
+                        "sensor_snapshot": sensor_snapshot,
+                        "history": search_results,
+                        "image_b64": image_b64
+                    })
 
-                print(
-                    f"[Fetcher] 🧠 FMU Created (ID: {fmu.id}) - Handing off to Judge."
-                )
-
-                search_results = self.find_similar_instances(fmu)
-
-                return fmu, sensor_snapshot, search_results, image_b64
+                return processed_crops
             else:
                 print(f"[Fetcher] ❌ Error: Simulator returned {response.status_code}")
-                return None, None, None, None
+                return []
 
         except Exception as e:
             print(f"[Fetcher] ❌ Critical Error: {e}")
-            return None, None, None, None
+            return []
 
     def _get_next_sequence(self, crop_id):
-        """Queries Qdrant for count of existing points for this crop_id."""
         try:
             count_filter = models.Filter(
                 must=[
@@ -118,7 +120,6 @@ class FetchingAgent:
 
     def find_similar_instances(self, current_fmu):
         try:
-            # Simple similarity search (excluding current crop to avoid bias if needed)
             hits = client.search(
                 collection_name=COLLECTION_NAME,
                 query_vector=current_fmu.vector,

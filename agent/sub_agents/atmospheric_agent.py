@@ -32,7 +32,7 @@ Research: {research}
 History: {history}
 Critique from Simulation: {critique}
 
-TASK: Output a JSON dict with keys: 'air_temp' (C), 'humidity' (%), 'co2' (ppm), 'light_intensity' (umol).
+TASK: Output ONLY a valid JSON object with keys: 'air_temp', 'humidity', 'co2', 'light_intensity'. Do not include markdown formatting, code blocks, or any explanatory text outside the JSON. Return strictly the raw JSON.
 """
 
 class AtmosphericAgent:
@@ -125,4 +125,6 @@ class AtmosphericAgent:
         }
         
         result = self.app.invoke(initial_state)
+
+   #     print(f"\n[{self.name}] Final Result: {result}")
         return result.get("final_action", {})

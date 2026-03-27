@@ -34,7 +34,7 @@ History: {history}
 Critique from Simulation: {critique}
 Visual Data: The latest camera image is available via the 'diagnose_plant' tool.
 
-TASK: Output a JSON dict with keys: 'ph', 'ec' (dS/m), 'water_temp' (C).
+TASK: Output ONLY a valid JSON object with keys: 'ph', 'ec', 'water_temp'. Do not include markdown formatting, code blocks, or any explanatory text outside the JSON. Return strictly the raw JSON.
 If you suspect root rot or issues with nutrient uptake (e.g. yellowing leaves), call 'diagnose_plant()' (with no arguments) to verify.
 """
 
@@ -129,4 +129,5 @@ class WaterAgent:
         }
         
         result = self.app.invoke(initial_state)
+      #  print(f"\n[{self.name}] Final Result: {result}")
         return result.get("final_action", {})

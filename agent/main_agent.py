@@ -16,11 +16,9 @@ from sub_agents.water_agent import WaterAgent
 from sub_agents.Researcher import ResearcherAgent
 from sub_agents.Supervisor import SupervisorAgent
 
-# Update this URL to your running simulator instance
 SIMULATOR_ACTION_URL = os.getenv(
-    "SIMULATOR_ACTION_URL", "http://localhost:3001/simulation/action"
+    "SIMULATOR_ACTION_URL", "http://localhost:8001/simulation/action"
 )
-
 
 def main():
     print("🚀 Initializing Demeter Orchestrator...")
@@ -31,9 +29,7 @@ def main():
         researcher = ResearcherAgent()
         atmos_agent = AtmosphericAgent()
         water_agent = WaterAgent()
-        # Pass researcher so Supervisor can share the RAG tools if needed
         supervisor = SupervisorAgent(researcher_agent=researcher)
-
         print("✅ Agents Online.")
     except Exception as e:
         print(f"❌ Init Error: {e}")
@@ -44,83 +40,81 @@ def main():
         print("⏱️  STARTING NEW CYCLE")
         print("=" * 50)
 
-        # 1. Fetch
-        fmu, sensor_snapshot, history, image_b64 = fetcher.fetch_and_process()
-        if not fmu:
-            print("⚠️ No FMU found. Waiting...")
+        crops_data = fetcher.fetch_and_process()
+        if not crops_data:
+            print("⚠️ No crops found. Waiting...")
             time.sleep(10)
             continue
 
-        # 2. Judge
-        time.sleep(2)  # Small delay to ensure FMU is fully available before judging
-        judge.review_previous_cycle(fmu, image_b64)
+        batch_actions = []
 
-        # 3. 🟢 GET BANDIT STRATEGY (The Brain)
-        # The Supervisor consults the Bandit first to set the cycle's goal
-        time.sleep(2)  # Ensure judge's review is complete before strategy retrieval
-        strat_name, strat_instr, action_idx = supervisor.get_strategic_goal(fmu)
-        print(f"\n🎰 BANDIT STRATEGY: {strat_name}")
-        print(f"📝 Instruction: {strat_instr}")
+        for crop_data in crops_data:
+            fmu = crop_data["fmu"]
+            sensor_snapshot = crop_data["sensor_snapshot"]
+            history = crop_data["history"]
+            image_b64 = crop_data["image_b64"]
+            crop_id = crop_data["crop_id"]
 
-        # 4. Research
-        crop = fmu.metadata.get("crop", "unknown")
-        stage = fmu.metadata.get("stage", "unknown")
-        query = f"optimal hydroponic conditions for {crop} in {stage} stage"
+            print(f"\n🌱 --- PROCESSING CROP: {crop_id} ---")
 
-        time.sleep(2)  # Small delay before research
-        research_context = researcher.search(query)
+            time.sleep(1)
+            judge.review_previous_cycle(fmu, image_b64)
 
-        # 5. 🟢 DELIBERATION (The Experts)
-        # We pass the strategy instruction and history to the LangGraph agents
-        print("\n🧠 Agents Planning...")
+            time.sleep(1)
+            strat_name, strat_instr, action_idx = supervisor.get_strategic_goal(fmu)
+            print(f"\n🎰 BANDIT STRATEGY: {strat_name}")
+            
+            crop = fmu.metadata.get("crop", "unknown")
+            stage = fmu.metadata.get("stage", "unknown")
+            query = f"optimal hydroponic conditions for {crop} in {stage} stage"
 
-        # Updated call signature to match the new 'reason' method
-        time.sleep(2)  # Ensure research context is ready before reasoning
-        atmos_plan = atmos_agent.reason(
-            sensors=sensor_snapshot,
-            research=research_context,
-            strategy=strat_instr,  # Pass the instruction text (e.g. "LOWER pH...")
-            history=history,  # Pass history for context awareness
-            image_b64=image_b64,  # Pass the image data for visual diagnosis
-        )
+            time.sleep(1)
+            research_context = researcher.search(query)
 
-        print(f"\n🌬️ Atmospheric Plan:\n{atmos_plan}")
+            print("\n🧠 Agents Planning...")
 
-        time.sleep(2)  # Small delay between agent calls
+            time.sleep(1)
+            atmos_plan = atmos_agent.reason(
+                sensors=sensor_snapshot,
+                research=research_context,
+                strategy=strat_instr,
+                history=history,
+                image_b64=image_b64,
+            )
 
-        water_plan = water_agent.reason(
-            sensors=sensor_snapshot,
-            research=research_context,
-            strategy=strat_instr,
-            history=history,
-            image_b64=image_b64,
-        )
+            time.sleep(1)
+            water_plan = water_agent.reason(
+                sensors=sensor_snapshot,
+                research=research_context,
+                strategy=strat_instr,
+                history=history,
+                image_b64=image_b64,
+            )
 
-        print(f"\n💧 Water & Nutrient Plan:\n{water_plan}")
+            print("\n👮 Supervisor Finalizing...")
+            final_action = supervisor.synthesize_plan(
+                atmos_plan,
+                water_plan,
+                fmu,
+                history,
+                strategy_info=(strat_name, strat_instr, action_idx),
+            )
 
-        # 6. Synthesis (The Supervisor)
-        # Supervisor merges plans, checks conflicts, and ensures safety
-        print("\n👮 Supervisor Finalizing...")
-        final_action = supervisor.synthesize_plan(
-            atmos_plan,
-            water_plan,
-            fmu,
-            history,
-            strategy_info=(strat_name, strat_instr, action_idx),
-        )
+            batch_actions.append({
+                "crop_id": crop_id,
+                "action": final_action
+            })
 
-        print(f"🎯 FINAL COMMAND: {final_action}")
-
-        # 7. Execute
+            print(f"\n✅ Final Action for {crop_id}: {final_action}")
         try:
-            requests.post(SIMULATOR_ACTION_URL, json=final_action)
-            print("✅ Sent to Simulator.")
+            requests.post(SIMULATOR_ACTION_URL, json=batch_actions)
+
+            print(f"\n✅ Batch sent to Simulator ({len(batch_actions)} actions).")
         except Exception as e:
-            print(f"❌ Connection Error: {e}")
+            print(f"\n❌ Connection Error: {e}")
 
-        print("\nzzz Sleeping 15s...")
-        time.sleep(15)
-
+        print("\nzzz Sleeping 2 minutes...")
+        time.sleep(120)
 
 if __name__ == "__main__":
     main()
