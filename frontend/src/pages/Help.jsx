@@ -22,6 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useT } from "../hooks/useTranslation";
+import { PrimaryButton } from "../components/ui";
 
 // Data
 
@@ -1048,6 +1049,7 @@ export default function Help() {
 
   return (
     <div
+      className="animate-fade-scale"
       style={{
         flex: 1,
         overflowY: "auto",
@@ -1124,8 +1126,16 @@ export default function Help() {
         </div>
       </div>
 
-      {/* ── Section 1: Sensor Terms ── */}
-      <section style={{ marginBottom: 36 }}>
+      {/* Section 1: Sensor Terms */}
+      <section
+        className="animate-fade-up"
+        style={{
+          marginBottom: 36,
+          animationDelay: "0.1s",
+          opacity: 0,
+          animationFillMode: "forwards",
+        }}
+      >
         <SectionHeader>{dict["help_section_terms"]}</SectionHeader>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {TERMS.map((term) => (
@@ -1134,8 +1144,16 @@ export default function Help() {
         </div>
       </section>
 
-      {/* ── Section 2: AI Agents ── */}
-      <section style={{ marginBottom: 36 }}>
+      {/* Section 2: AI Agents */}
+      <section
+        className="animate-fade-up"
+        style={{
+          marginBottom: 36,
+          animationDelay: "0.2s",
+          opacity: 0,
+          animationFillMode: "forwards",
+        }}
+      >
         <SectionHeader>{dict["help_section_agents"]}</SectionHeader>
 
         {/* Pipeline flow visualization */}
@@ -1183,8 +1201,16 @@ export default function Help() {
         </div>
       </section>
 
-      {/* ── Section 3: Growth Stages ── */}
-      <section style={{ marginBottom: 36 }}>
+      {/* Section 3: Growth Stages */}
+      <section
+        className="animate-fade-up"
+        style={{
+          marginBottom: 36,
+          animationDelay: "0.3s",
+          opacity: 0,
+          animationFillMode: "forwards",
+        }}
+      >
         <SectionHeader>{dict["help_section_stages"]}</SectionHeader>
         <div
           style={{
@@ -1199,8 +1225,16 @@ export default function Help() {
         </div>
       </section>
 
-      {/* ── Section 4: Manual Intervention ── */}
-      <section style={{ marginBottom: 36 }}>
+      {/* Section 4: Manual Intervention */}
+      <section
+        className="animate-fade-up"
+        style={{
+          marginBottom: 36,
+          animationDelay: "0.4s",
+          opacity: 0,
+          animationFillMode: "forwards",
+        }}
+      >
         <SectionHeader>{dict["help_section_manual"]}</SectionHeader>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {MANUAL_SCENARIOS.map((s) => (
@@ -1209,8 +1243,9 @@ export default function Help() {
         </div>
       </section>
 
-      {/* ── AI CTA ── */}
+      {/* AI CTA */}
       <div
+        className="animate-fade-scale"
         style={{
           padding: "24px",
           borderRadius: 16,
@@ -1223,6 +1258,9 @@ export default function Help() {
           gap: 16,
           flexWrap: "wrap",
           marginBottom: 8,
+          animationDelay: "0.5s",
+          opacity: 0,
+          animationFillMode: "forwards",
         }}
       >
         <div>
@@ -1240,26 +1278,12 @@ export default function Help() {
             {dict["help_ai_cta_desc"]}
           </div>
         </div>
-        <button
+        <PrimaryButton
           onClick={() => navigate("/intelligence")}
-          style={{
-            padding: "10px 20px",
-            borderRadius: 10,
-            background: "var(--green)",
-            border: "none",
-            color: "#0c1a0e",
-            fontWeight: 700,
-            fontSize: 13,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            flexShrink: 0,
-          }}
+          icon={Sparkles}
         >
-          <Sparkles size={14} />
           {dict["help_ai_cta_btn"]}
-        </button>
+        </PrimaryButton>
       </div>
     </div>
   );

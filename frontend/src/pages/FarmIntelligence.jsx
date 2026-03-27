@@ -28,7 +28,7 @@ import {
   AgentActionWidget,
   AgentOutcomeWidget,
 } from "../components/AgentWidgets";
-import Sidebar from "../components/Sidebar";
+import { PageShell, PageHeader } from "../components/ui";
 import { useFarmData } from "../hooks/useFarmData";
 
 // Suggestion banks
@@ -1232,16 +1232,7 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
     : getGlobalSuggestions(t);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        overflow: "hidden",
-        background: "var(--bg)",
-      }}
-    >
-      <Sidebar />
-
+    <PageShell>
       {toast && (
         <div
           className="animate-fade-in"
@@ -1275,37 +1266,13 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
         }}
       >
         {/* Header */}
-        <header
-          style={{
-            flexShrink: 0,
-            padding: "0 24px",
-            height: 64,
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
+        <PageHeader
+          title={t("intel_title")}
+          subtitle={t("intel_subtitle")}
+          icon={Sparkles}
+          iconColor="#a78bfa"
+          iconBg="rgba(167,139,250,0.1)"
         >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: "rgba(167,139,250,0.1)",
-              border: "1px solid rgba(167,139,250,0.2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Sparkles size={15} style={{ color: "#a78bfa" }} />
-          </div>
-          <div>
-            <h1 className="page-title">{t("intel_title")}</h1>
-            <p className="page-subtitle">{t("intel_subtitle")}</p>
-          </div>
-
           {/* Mode toggle */}
           <div
             style={{
@@ -1319,8 +1286,8 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
             }}
           >
             {[
-              { key: "search", label: t("intel_search"), icon: Search },
               { key: "ask", label: t("intel_ask_ai"), icon: MessageSquare },
+              { key: "search", label: t("intel_search"), icon: Search },
             ].map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -1353,9 +1320,11 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
               </button>
             ))}
           </div>
-        </header>
+        </PageHeader>
 
         <div
+          key={mode}
+          className="animate-fade-in"
           style={{
             flex: 1,
             overflowY: "auto",
@@ -1973,6 +1942,6 @@ SYSTEM: Hydroponic multi-crop farm management system (Demeter).`.trim();
           )}
         </div>
       </main>
-    </div>
+    </PageShell>
   );
 }

@@ -28,33 +28,12 @@ import {
   buildAgentStats,
 } from "../utils/dataUtils";
 import { TrendingUp, TrendingDown, Minus, Download } from "lucide-react";
-import Sidebar from "../components/Sidebar";
-
-// Shared Tooltip
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      style={{
-        padding: "8px 12px",
-        borderRadius: 8,
-        fontSize: 12,
-        fontFamily: "DM Mono, monospace",
-        background: "var(--tooltip-bg)",
-        border: "1px solid var(--border)",
-        color: "var(--text)",
-        boxShadow: "var(--shadow)",
-      }}
-    >
-      <div style={{ color: "var(--text-3)", marginBottom: 4 }}>{label}</div>
-      {payload.map((p) => (
-        <div key={p.dataKey} style={{ color: p.color, marginTop: 2 }}>
-          {p.name}: <strong>{p.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-};
+import {
+  PageShell,
+  PageHeader,
+  ChartTooltip,
+  InlineLabel,
+} from "../components/ui";
 
 function MetricCard({ label, value, unit, change, color, loading, t }) {
   const up = change > 0;
@@ -126,7 +105,7 @@ function MetricCard({ label, value, unit, change, color, loading, t }) {
 function SectionHead({ label, title }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div className="section-label">{label}</div>
+      <InlineLabel>{label}</InlineLabel>
       <h2
         style={{
           fontWeight: 700,
@@ -232,254 +211,309 @@ export default function Analytics() {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        overflow: "hidden",
-        background: "var(--bg)",
-      }}
-    >
-      <Sidebar />
-
-      <main
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
+    <PageShell>
+      {/* Header */}
+      <PageHeader
+        title={t("analytics_title")}
+        subtitle={
+          loading
+            ? t("common_loading")
+            : t("analytics_subtitle", {
+                points: allPoints.length,
+                crops: dashboard.length,
+              })
+        }
       >
-        {/* Header */}
-        <header
+        <div
           style={{
-            flexShrink: 0,
-            padding: "0 24px",
-            height: 64,
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
+            marginLeft: "auto",
             display: "flex",
             alignItems: "center",
-            gap: 16,
+            gap: 8,
           }}
         >
-          <div>
-            <h1 className="page-title">{t("analytics_title")}</h1>
-            <p className="page-subtitle">
-              {loading
-                ? t("common_loading")
-                : t("analytics_subtitle", {
-                    points: allPoints.length,
-                    crops: dashboard.length,
-                  })}
-            </p>
-          </div>
-          <div
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            {["24h", "7d", "30d"].map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  fontFamily: "DM Mono, monospace",
-                  cursor: "pointer",
-                  background:
-                    range === r ? "rgba(74,222,128,0.12)" : "var(--surface)",
-                  border: `1px solid ${range === r ? "rgba(74,222,128,0.3)" : "var(--border)"}`,
-                  color: range === r ? "var(--green)" : "var(--text-3)",
-                }}
-              >
-                {r}
-              </button>
-            ))}
+          {["24h", "7d", "30d"].map((r) => (
             <button
-              onClick={handleExport}
+              key={r}
+              onClick={() => setRange(r)}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
                 padding: "5px 12px",
                 borderRadius: 8,
                 fontSize: 12,
                 fontFamily: "DM Mono, monospace",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text-3)",
                 cursor: "pointer",
+                background:
+                  range === r ? "rgba(74,222,128,0.12)" : "var(--surface)",
+                border: `1px solid ${range === r ? "rgba(74,222,128,0.3)" : "var(--border)"}`,
+                color: range === r ? "var(--green)" : "var(--text-3)",
               }}
             >
-              <Download size={12} /> {t("analytics_export")}
+              {r}
             </button>
-          </div>
-        </header>
-
-        {/* Scrollable content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: 24,
-            display: "flex",
-            flexDirection: "column",
-            gap: 28,
-          }}
-        >
-          {/* Metric Cards */}
-          <div
+          ))}
+          <button
+            onClick={handleExport}
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
-              gap: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "5px 12px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontFamily: "DM Mono, monospace",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-3)",
+              cursor: "pointer",
             }}
           >
-            <MetricCard
-              loading={loading}
-              label={t("analytics_avg_ph")}
-              value={latestSensors.ph}
-              unit=""
-              change={safePct(latestSensors.ph, prevSensors.ph)}
-              color="var(--green)"
-              t={t}
-            />
-            <MetricCard
-              loading={loading}
-              label={t("analytics_avg_ec")}
-              value={latestSensors.ec}
-              unit="dS/m"
-              change={safePct(latestSensors.ec, prevSensors.ec)}
-              color="var(--amber)"
-              t={t}
-            />
-            <MetricCard
-              loading={loading}
-              label={t("analytics_avg_temp")}
-              value={latestSensors.temp}
-              unit="°C"
-              change={safePct(latestSensors.temp, prevSensors.temp)}
-              color="var(--blue)"
-              t={t}
-            />
-            <MetricCard
-              loading={loading}
-              label={t("analytics_total_seq")}
-              value={allPoints.length}
-              unit=""
-              change={safePct(
-                allPoints.length,
-                Math.max(allPoints.length - dashboard.length, 1),
+            <Download size={12} /> {t("analytics_export")}
+          </button>
+        </div>
+      </PageHeader>
+
+      {/* Scrollable content */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: 24,
+          display: "flex",
+          flexDirection: "column",
+          gap: 28,
+        }}
+      >
+        {/* Metric Cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4,1fr)",
+            gap: 12,
+          }}
+        >
+          <MetricCard
+            loading={loading}
+            label={t("analytics_avg_ph")}
+            value={latestSensors.ph}
+            unit=""
+            change={safePct(latestSensors.ph, prevSensors.ph)}
+            color="var(--green)"
+            t={t}
+          />
+          <MetricCard
+            loading={loading}
+            label={t("analytics_avg_ec")}
+            value={latestSensors.ec}
+            unit="dS/m"
+            change={safePct(latestSensors.ec, prevSensors.ec)}
+            color="var(--amber)"
+            t={t}
+          />
+          <MetricCard
+            loading={loading}
+            label={t("analytics_avg_temp")}
+            value={latestSensors.temp}
+            unit="°C"
+            change={safePct(latestSensors.temp, prevSensors.temp)}
+            color="var(--blue)"
+            t={t}
+          />
+          <MetricCard
+            loading={loading}
+            label={t("analytics_total_seq")}
+            value={allPoints.length}
+            unit=""
+            change={safePct(
+              allPoints.length,
+              Math.max(allPoints.length - dashboard.length, 1),
+            )}
+            color="var(--text)"
+            t={t}
+          />
+        </div>
+
+        {/* pH + EC Charts */}
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
+        >
+          {[
+            {
+              title: t("analytics_ph_over_time"),
+              key: "ph",
+              stroke: "var(--green)",
+              gradId: "phGradA",
+              gradColor: "#4ade80",
+              name: t("chart_ph"),
+            },
+            {
+              title: t("analytics_ec_conc"),
+              key: "ec",
+              stroke: "var(--amber)",
+              gradId: "ecGradA",
+              gradColor: "#f59e0b",
+              name: t("chart_ec"),
+            },
+          ].map(({ title, key, stroke, gradId, gradColor, name }) => (
+            <div
+              key={key}
+              style={{
+                borderRadius: 14,
+                padding: 20,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <SectionHead
+                label={t("analytics_trace", { range: range.toUpperCase() })}
+                title={title}
+              />
+              {buckets.length < 2 ? (
+                <EmptyChart message={t("analytics_no_data_range")} />
+              ) : (
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={buckets}>
+                    <defs>
+                      <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                        <stop
+                          offset="0%"
+                          stopColor={gradColor}
+                          stopOpacity={0.3}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor={gradColor}
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      stroke="var(--border)"
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="label"
+                      tick={{
+                        fontSize: 10,
+                        fill: "var(--text-3)",
+                        fontFamily: "DM Mono",
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      domain={["auto", "auto"]}
+                      tick={{
+                        fontSize: 10,
+                        fill: "var(--text-3)",
+                        fontFamily: "DM Mono",
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey={key}
+                      stroke={stroke}
+                      fill={`url(#${gradId})`}
+                      strokeWidth={2}
+                      dot={false}
+                      name={name}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               )}
-              color="var(--text)"
-              t={t}
-            />
-          </div>
+            </div>
+          ))}
+        </div>
 
-          {/* pH + EC Charts */}
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
-          >
-            {[
-              {
-                title: t("analytics_ph_over_time"),
-                key: "ph",
-                stroke: "var(--green)",
-                gradId: "phGradA",
-                gradColor: "#4ade80",
-                name: t("chart_ph"),
-              },
-              {
-                title: t("analytics_ec_conc"),
-                key: "ec",
-                stroke: "var(--amber)",
-                gradId: "ecGradA",
-                gradColor: "#f59e0b",
-                name: t("chart_ec"),
-              },
-            ].map(({ title, key, stroke, gradId, gradColor, name }) => (
-              <div
-                key={key}
-                style={{
-                  borderRadius: 14,
-                  padding: 20,
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <SectionHead
-                  label={t("analytics_trace", { range: range.toUpperCase() })}
-                  title={title}
+        {/* Temp + Humidity */}
+        <div
+          style={{
+            borderRadius: 14,
+            padding: 20,
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <SectionHead
+            label={t("analytics_trace", { range: range.toUpperCase() })}
+            title={t("analytics_temp_hum")}
+          />
+          {buckets.length < 2 ? (
+            <EmptyChart message={t("analytics_no_data_range")} />
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={buckets}>
+                <CartesianGrid
+                  stroke="var(--border)"
+                  strokeDasharray="3 3"
+                  vertical={false}
                 />
-                {buckets.length < 2 ? (
-                  <EmptyChart message={t("analytics_no_data_range")} />
-                ) : (
-                  <ResponsiveContainer width="100%" height={180}>
-                    <AreaChart data={buckets}>
-                      <defs>
-                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                          <stop
-                            offset="0%"
-                            stopColor={gradColor}
-                            stopOpacity={0.3}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={gradColor}
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid
-                        stroke="var(--border)"
-                        strokeDasharray="3 3"
-                        vertical={false}
-                      />
-                      <XAxis
-                        dataKey="label"
-                        tick={{
-                          fontSize: 10,
-                          fill: "var(--text-3)",
-                          fontFamily: "DM Mono",
-                        }}
-                        axisLine={false}
-                        tickLine={false}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        domain={["auto", "auto"]}
-                        tick={{
-                          fontSize: 10,
-                          fill: "var(--text-3)",
-                          fontFamily: "DM Mono",
-                        }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Area
-                        type="monotone"
-                        dataKey={key}
-                        stroke={stroke}
-                        fill={`url(#${gradId})`}
-                        strokeWidth={2}
-                        dot={false}
-                        name={name}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            ))}
-          </div>
+                <XAxis
+                  dataKey="label"
+                  tick={{
+                    fontSize: 10,
+                    fill: "var(--text-3)",
+                    fontFamily: "DM Mono",
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  yAxisId="left"
+                  domain={["auto", "auto"]}
+                  tick={{
+                    fontSize: 10,
+                    fill: "var(--text-3)",
+                    fontFamily: "DM Mono",
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  domain={["auto", "auto"]}
+                  tick={{
+                    fontSize: 10,
+                    fill: "var(--text-3)",
+                    fontFamily: "DM Mono",
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="temp"
+                  stroke="#60a5fa"
+                  strokeWidth={2}
+                  dot={false}
+                  name={t("chart_temp")}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="humidity"
+                  stroke="#a78bfa"
+                  strokeWidth={2}
+                  dot={false}
+                  name={t("chart_humidity")}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
-          {/* Temp + Humidity */}
+        {/* Activity + Radar */}
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
+        >
           <div
             style={{
               borderRadius: 14,
@@ -489,33 +523,21 @@ export default function Analytics() {
             }}
           >
             <SectionHead
-              label={t("analytics_trace", { range: range.toUpperCase() })}
-              title={t("analytics_temp_hum")}
+              label={t("analytics_daily_act")}
+              title={t("analytics_seq_per_day")}
             />
-            {buckets.length < 2 ? (
-              <EmptyChart message={t("analytics_no_data_range")} />
+            {activityData.length < 2 ? (
+              <EmptyChart height={180} message={t("analytics_no_data_days")} />
             ) : (
               <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={buckets}>
+                <BarChart data={activityData} barGap={4}>
                   <CartesianGrid
                     stroke="var(--border)"
                     strokeDasharray="3 3"
                     vertical={false}
                   />
                   <XAxis
-                    dataKey="label"
-                    tick={{
-                      fontSize: 10,
-                      fill: "var(--text-3)",
-                      fontFamily: "DM Mono",
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    domain={["auto", "auto"]}
+                    dataKey="d"
                     tick={{
                       fontSize: 10,
                       fill: "var(--text-3)",
@@ -525,9 +547,6 @@ export default function Analytics() {
                     tickLine={false}
                   />
                   <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    domain={["auto", "auto"]}
                     tick={{
                       fontSize: 10,
                       fill: "var(--text-3)",
@@ -535,316 +554,114 @@ export default function Analytics() {
                     }}
                     axisLine={false}
                     tickLine={false}
+                    allowDecimals={false}
                   />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="temp"
-                    stroke="#60a5fa"
-                    strokeWidth={2}
-                    dot={false}
-                    name={t("chart_temp")}
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar
+                    dataKey="count"
+                    fill="#2d7a44"
+                    radius={[4, 4, 0, 0]}
+                    name={t("chart_sequences")}
                   />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="humidity"
-                    stroke="#a78bfa"
-                    strokeWidth={2}
-                    dot={false}
-                    name={t("chart_humidity")}
-                  />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             )}
           </div>
 
-          {/* Activity + Radar */}
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
-          >
-            <div
-              style={{
-                borderRadius: 14,
-                padding: 20,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <SectionHead
-                label={t("analytics_daily_act")}
-                title={t("analytics_seq_per_day")}
-              />
-              {activityData.length < 2 ? (
-                <EmptyChart
-                  height={180}
-                  message={t("analytics_no_data_days")}
-                />
-              ) : (
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={activityData} barGap={4}>
-                    <CartesianGrid
-                      stroke="var(--border)"
-                      strokeDasharray="3 3"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="d"
-                      tick={{
-                        fontSize: 10,
-                        fill: "var(--text-3)",
-                        fontFamily: "DM Mono",
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{
-                        fontSize: 10,
-                        fill: "var(--text-3)",
-                        fontFamily: "DM Mono",
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar
-                      dataKey="count"
-                      fill="#2d7a44"
-                      radius={[4, 4, 0, 0]}
-                      name={t("chart_sequences")}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            <div
-              style={{
-                borderRadius: 14,
-                padding: 20,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <SectionHead
-                label={t("analytics_param_health")}
-                title={t("analytics_in_range_score")}
-              />
-              {radarData.length < 2 ? (
-                <EmptyChart
-                  height={180}
-                  message={t("analytics_no_data_points")}
-                />
-              ) : (
-                <ResponsiveContainer width="100%" height={180}>
-                  <RadarChart
-                    data={radarData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius="65%"
-                  >
-                    <PolarGrid stroke="var(--border)" />
-                    <PolarAngleAxis
-                      dataKey="metric"
-                      tick={{
-                        fontSize: 11,
-                        fill: "var(--text-3)",
-                        fontFamily: "DM Mono",
-                      }}
-                    />
-                    <Radar
-                      dataKey="value"
-                      stroke="var(--green)"
-                      fill="rgba(74,222,128,0.15)"
-                      strokeWidth={2}
-                      name={t("chart_in_range")}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Crop Summary Table */}
           <div
             style={{
               borderRadius: 14,
-              overflow: "hidden",
+              padding: 20,
               background: "var(--surface)",
               border: "1px solid var(--border)",
-              flexShrink: 0,
             }}
           >
-            <div
-              style={{
-                padding: "16px 20px",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <SectionHead
-                label={t("analytics_per_crop")}
-                title={t("analytics_latest_sensor")}
+            <SectionHead
+              label={t("analytics_param_health")}
+              title={t("analytics_in_range_score")}
+            />
+            {radarData.length < 2 ? (
+              <EmptyChart
+                height={180}
+                message={t("analytics_no_data_points")}
               />
-            </div>
-            {loading ? (
-              <div style={{ padding: 32, textAlign: "center" }}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontFamily: "DM Mono, monospace",
-                    color: "var(--text-3)",
-                  }}
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <RadarChart
+                  data={radarData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius="65%"
                 >
-                  {t("common_loading")}
-                </span>
-              </div>
-            ) : cropSummaryRows.length === 0 ? (
-              <div
+                  <PolarGrid stroke="var(--border)" />
+                  <PolarAngleAxis
+                    dataKey="metric"
+                    tick={{
+                      fontSize: 11,
+                      fill: "var(--text-3)",
+                      fontFamily: "DM Mono",
+                    }}
+                  />
+                  <Radar
+                    dataKey="value"
+                    stroke="var(--green)"
+                    fill="rgba(74,222,128,0.15)"
+                    strokeWidth={2}
+                    name={t("chart_in_range")}
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                </RadarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Crop Summary Table */}
+        <div
+          style={{
+            borderRadius: 14,
+            overflow: "hidden",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <SectionHead
+              label={t("analytics_per_crop")}
+              title={t("analytics_latest_sensor")}
+            />
+          </div>
+          {loading ? (
+            <div style={{ padding: 32, textAlign: "center" }}>
+              <span
                 style={{
-                  padding: 32,
-                  textAlign: "center",
                   fontSize: 12,
                   fontFamily: "DM Mono, monospace",
                   color: "var(--text-3)",
                 }}
               >
-                {t("dash_no_crops")}
-              </div>
-            ) : (
-              <table
-                className="data-table"
-                style={{ width: "100%", borderCollapse: "collapse" }}
-              >
-                <thead>
-                  <tr>
-                    {[
-                      t("analytics_th_crop_id"),
-                      t("analytics_th_type"),
-                      t("analytics_th_stage"),
-                      t("analytics_th_ph"),
-                      t("analytics_th_ec"),
-                      t("analytics_th_temp"),
-                      t("analytics_th_seq"),
-                    ].map((h) => (
-                      <th key={h}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {cropSummaryRows.map(({ p, s, key }) => (
-                    <tr
-                      key={key}
-                      style={{ transition: "background 0.12s" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "var(--bg-3)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      <td
-                        style={{
-                          fontFamily: "DM Mono, monospace",
-                          fontSize: 12,
-                          color: "var(--text)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {p.crop_id || "—"}
-                      </td>
-                      <td>{td(p.crop) || "—"}</td>
-                      <td
-                        style={{
-                          color: "var(--text-3)",
-                          fontSize: 12,
-                          fontFamily: "DM Mono, monospace",
-                        }}
-                      >
-                        {td(p.stage) || "—"}
-                      </td>
-                      <td>
-                        <span
-                          className="sensor-value-xs"
-                          style={{ color: "var(--green)" }}
-                        >
-                          {s.ph}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className="sensor-value-xs"
-                          style={{ color: "var(--amber)" }}
-                        >
-                          {s.ec}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: "var(--text-3)",
-                            marginLeft: 3,
-                          }}
-                        >
-                          dS/m
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className="sensor-value-xs"
-                          style={{ color: "var(--blue)" }}
-                        >
-                          {s.temp}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: "var(--text-3)",
-                            marginLeft: 2,
-                          }}
-                        >
-                          °C
-                        </span>
-                      </td>
-                      <td
-                        style={{
-                          fontFamily: "DM Mono, monospace",
-                          fontSize: 13,
-                          color: "var(--text-2)",
-                        }}
-                      >
-                        {p.sequence_number || 1}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* Agent Activity Table */}
-          <div
-            style={{
-              borderRadius: 14,
-              overflow: "hidden",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              flexShrink: 0,
-            }}
-          >
+                {t("common_loading")}
+              </span>
+            </div>
+          ) : cropSummaryRows.length === 0 ? (
             <div
               style={{
-                padding: "16px 20px",
-                borderBottom: "1px solid var(--border)",
+                padding: 32,
+                textAlign: "center",
+                fontSize: 12,
+                fontFamily: "DM Mono, monospace",
+                color: "var(--text-3)",
               }}
             >
-              <SectionHead
-                label={t("analytics_derived_act")}
-                title={t("analytics_agent_act")}
-              />
+              {t("dash_no_crops")}
             </div>
+          ) : (
             <table
               className="data-table"
               style={{ width: "100%", borderCollapse: "collapse" }}
@@ -852,107 +669,236 @@ export default function Analytics() {
               <thead>
                 <tr>
                   {[
-                    t("analytics_th_agent"),
-                    t("analytics_th_apps"),
-                    t("analytics_th_success"),
-                    t("analytics_th_status"),
+                    t("analytics_th_crop_id"),
+                    t("analytics_th_type"),
+                    t("analytics_th_stage"),
+                    t("analytics_th_ph"),
+                    t("analytics_th_ec"),
+                    t("analytics_th_temp"),
+                    t("analytics_th_seq"),
                   ].map((h) => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {agentRows.map(({ name, decisions, accuracy }) => (
+                {cropSummaryRows.map(({ p, s, key }) => (
                   <tr
-                    key={name}
+                    key={key}
+                    style={{ transition: "background 0.12s" }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background = "var(--bg-3)")
                     }
                     onMouseLeave={(e) =>
                       (e.currentTarget.style.background = "transparent")
                     }
-                    style={{ transition: "background 0.12s" }}
                   >
                     <td
                       style={{
                         fontFamily: "DM Mono, monospace",
-                        fontWeight: 600,
-                        fontSize: 13,
+                        fontSize: 12,
                         color: "var(--text)",
+                        fontWeight: 600,
                       }}
                     >
-                      {name}
+                      {p.crop_id || "—"}
                     </td>
+                    <td>{td(p.crop) || "—"}</td>
                     <td
-                      style={{ fontFamily: "DM Mono, monospace", fontSize: 13 }}
+                      style={{
+                        color: "var(--text-3)",
+                        fontSize: 12,
+                        fontFamily: "DM Mono, monospace",
+                      }}
                     >
-                      {decisions}
-                    </td>
-                    <td>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: 6,
-                            width: 100,
-                            borderRadius: 3,
-                            background: "var(--border)",
-                          }}
-                        >
-                          <div
-                            style={{
-                              height: "100%",
-                              borderRadius: 3,
-                              width: `${accuracy}%`,
-                              background:
-                                accuracy > 80
-                                  ? "var(--green)"
-                                  : accuracy > 50
-                                    ? "var(--amber)"
-                                    : "var(--red)",
-                              transition: "width 0.6s ease",
-                            }}
-                          />
-                        </div>
-                        <span
-                          style={{
-                            fontFamily: "DM Mono, monospace",
-                            fontSize: 13,
-                            color: "var(--text-2)",
-                            minWidth: 36,
-                          }}
-                        >
-                          {accuracy}%
-                        </span>
-                      </div>
+                      {td(p.stage) || "—"}
                     </td>
                     <td>
                       <span
+                        className="sensor-value-xs"
+                        style={{ color: "var(--green)" }}
+                      >
+                        {s.ph}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className="sensor-value-xs"
+                        style={{ color: "var(--amber)" }}
+                      >
+                        {s.ec}
+                      </span>
+                      <span
                         style={{
                           fontSize: 11,
-                          fontFamily: "DM Mono, monospace",
-                          padding: "3px 10px",
-                          borderRadius: 20,
-                          background: "rgba(74,222,128,0.1)",
-                          color: "var(--green)",
-                          border: "1px solid rgba(74,222,128,0.2)",
+                          color: "var(--text-3)",
+                          marginLeft: 3,
                         }}
                       >
-                        {t("analytics_online")}
+                        dS/m
                       </span>
+                    </td>
+                    <td>
+                      <span
+                        className="sensor-value-xs"
+                        style={{ color: "var(--blue)" }}
+                      >
+                        {s.temp}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "var(--text-3)",
+                          marginLeft: 2,
+                        }}
+                      >
+                        °C
+                      </span>
+                    </td>
+                    <td
+                      style={{
+                        fontFamily: "DM Mono, monospace",
+                        fontSize: 13,
+                        color: "var(--text-2)",
+                      }}
+                    >
+                      {p.sequence_number || 1}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
-      </main>
-    </div>
+
+        {/* Agent Activity Table */}
+        <div
+          style={{
+            borderRadius: 14,
+            overflow: "hidden",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <SectionHead
+              label={t("analytics_derived_act")}
+              title={t("analytics_agent_act")}
+            />
+          </div>
+          <table
+            className="data-table"
+            style={{ width: "100%", borderCollapse: "collapse" }}
+          >
+            <thead>
+              <tr>
+                {[
+                  t("analytics_th_agent"),
+                  t("analytics_th_apps"),
+                  t("analytics_th_success"),
+                  t("analytics_th_status"),
+                ].map((h) => (
+                  <th key={h}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {agentRows.map(({ name, decisions, accuracy }) => (
+                <tr
+                  key={name}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "var(--bg-3)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                  style={{ transition: "background 0.12s" }}
+                >
+                  <td
+                    style={{
+                      fontFamily: "DM Mono, monospace",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: "var(--text)",
+                    }}
+                  >
+                    {name}
+                  </td>
+                  <td
+                    style={{ fontFamily: "DM Mono, monospace", fontSize: 13 }}
+                  >
+                    {decisions}
+                  </td>
+                  <td>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 6,
+                          width: 100,
+                          borderRadius: 3,
+                          background: "var(--border)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            borderRadius: 3,
+                            width: `${accuracy}%`,
+                            background:
+                              accuracy > 80
+                                ? "var(--green)"
+                                : accuracy > 50
+                                  ? "var(--amber)"
+                                  : "var(--red)",
+                            transition: "width 0.6s ease",
+                          }}
+                        />
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: "DM Mono, monospace",
+                          fontSize: 13,
+                          color: "var(--text-2)",
+                          minWidth: 36,
+                        }}
+                      >
+                        {accuracy}%
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontFamily: "DM Mono, monospace",
+                        padding: "3px 10px",
+                        borderRadius: 20,
+                        background: "rgba(74,222,128,0.1)",
+                        color: "var(--green)",
+                        border: "1px solid rgba(74,222,128,0.2)",
+                      }}
+                    >
+                      {t("analytics_online")}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </PageShell>
   );
 }

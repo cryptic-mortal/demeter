@@ -26,7 +26,12 @@ import {
   FlaskConical,
   Cpu,
 } from "lucide-react";
-import Sidebar from "../components/Sidebar";
+import {
+  PageShell,
+  PageHeader,
+  IconButton,
+  SectionCard,
+} from "../components/ui";
 
 // Agent Formatting
 const AGENT_META = {
@@ -427,16 +432,7 @@ export default function AddCrop() {
   const INPUT_FIELDS = getInputFields(t);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        overflow: "hidden",
-        background: "var(--bg)",
-      }}
-    >
-      <Sidebar />
-
+    <PageShell>
       {/* Toast */}
       {toast && (
         <div
@@ -482,55 +478,25 @@ export default function AddCrop() {
         }}
       >
         {/* Header */}
-        <header
-          style={{
-            flexShrink: 0,
-            padding: "0 24px",
-            height: 64,
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
+        <PageHeader
+          title={t("add_title")}
+          subtitle={t("add_subtitle")}
+          icon={Sprout}
+          iconColor="var(--green)"
+          iconBg="rgba(74,222,128,0.1)"
         >
-          <button
-            onClick={() => navigate("/dashboard")}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 8,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <ArrowLeft size={15} />
-          </button>
-
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              flexShrink: 0,
-              background: "rgba(74,222,128,0.1)",
-              border: "1px solid rgba(74,222,128,0.2)",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: 8,
+              marginRight: 8,
+              order: -1,
             }}
           >
-            <Sprout size={15} style={{ color: "var(--green)" }} />
-          </div>
-
-          <div>
-            <h1 className="page-title">{t("add_title")}</h1>
-            <p className="page-subtitle">{t("add_subtitle")}</p>
+            <IconButton onClick={() => navigate("/dashboard")}>
+              <ArrowLeft size={15} />
+            </IconButton>
           </div>
 
           {/* Cycle counter */}
@@ -562,7 +528,7 @@ export default function AddCrop() {
               {t("add_cycles_done", { n: cycles, s: cycles !== 1 ? "S" : "" })}
             </div>
           )}
-        </header>
+        </PageHeader>
 
         {/* Pipeline phase strip */}
         {phase === "running" && (
@@ -828,14 +794,7 @@ export default function AddCrop() {
             </div>
 
             {/* Sensor inputs */}
-            <div
-              style={{
-                borderRadius: 16,
-                padding: 22,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
-            >
+            <SectionCard>
               <div className="section-label">{t("add_sensor_params")}</div>
               <div
                 style={{
@@ -971,7 +930,7 @@ export default function AddCrop() {
                   ),
                 )}
               </div>
-            </div>
+            </SectionCard>
           </div>
 
           {/* Live agent log */}
@@ -1279,6 +1238,6 @@ export default function AddCrop() {
           )}
         </div>
       </main>
-    </div>
+    </PageShell>
   );
 }

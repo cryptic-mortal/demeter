@@ -10,23 +10,31 @@ import {
   isReadyToHarvest,
 } from "../utils/dataUtils";
 import {
-  Search,
   SlidersHorizontal,
   Thermometer,
   Droplet,
   ArrowUpRight,
   Clock,
-  ChevronDown,
-  X,
   RefreshCw,
   Leaf,
   Activity,
-  ChevronLeft,
-  ChevronRight,
   PlusCircle,
   Scissors,
 } from "lucide-react";
-import Sidebar from "../components/Sidebar";
+import {
+  PageShell,
+  PageHeader,
+  IconButton,
+  PrimaryButton,
+  SearchBar,
+  FilterBar,
+  FilterPill,
+  SelectField,
+  StatusBadge,
+  Pagination,
+  EmptyState,
+  LoadingShimmer,
+} from "../components/ui";
 
 const STAGES_KEYS = [
   "stage_all",
@@ -43,26 +51,7 @@ const STATUSES_KEYS = [
   "dash_critical",
 ];
 
-const STATUS_COLORS = {
-  Healthy: {
-    bg: "rgba(74,222,128,0.12)",
-    text: "var(--green)",
-    border: "rgba(74,222,128,0.3)",
-  },
-  Attention: {
-    bg: "rgba(245,158,11,0.12)",
-    text: "var(--amber)",
-    border: "rgba(245,158,11,0.3)",
-  },
-  Critical: {
-    bg: "rgba(248,113,113,0.12)",
-    text: "var(--red)",
-    border: "rgba(248,113,113,0.3)",
-  },
-};
-
 function CropCard({ data, onClick, t, td }) {
-  const st = STATUS_COLORS[data.status] || STATUS_COLORS.Healthy;
   const maturity = data.maturity || 40;
 
   // Map backend status to translation key
@@ -165,23 +154,11 @@ function CropCard({ data, onClick, t, td }) {
           }}
         />
 
-        {/* Status badge */}
-        <div
-          style={{
-            position: "absolute",
-            top: 10,
-            right: 10,
-            fontSize: 10,
-            fontFamily: "DM Mono, monospace",
-            padding: "3px 8px",
-            borderRadius: 20,
-            background: st.bg,
-            color: st.text,
-            border: `1px solid ${st.border}`,
-          }}
-        >
-          {t(statusKey).toUpperCase()}
-        </div>
+        <StatusBadge
+          status={data.status}
+          label={t(statusKey).toUpperCase()}
+          style={{ position: "absolute", top: 10, right: 10 }}
+        />
         {/* Seq badge */}
         <div
           style={{
@@ -504,463 +481,319 @@ export default function Dashboard() {
   const STATUS_EN = ["All", "Healthy", "Attention", "Critical"];
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        overflow: "hidden",
-        background: "var(--bg)",
-      }}
-    >
-      <Sidebar />
-
-      <main
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
+    <PageShell>
+      {/* Header */}
+      <PageHeader
+        title={t("dash_title")}
+        subtitle={t("dash_subtitle", {
+          filtered: filtered.length,
+          total: crops.length,
+        })}
       >
-        {/* Header */}
-        <header
-          style={{
-            flexShrink: 0,
-            padding: "0 24px",
-            height: 64,
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
-          <div>
-            <h1 className="page-title">{t("dash_title")}</h1>
-            <p className="page-subtitle">
-              {t("dash_subtitle", {
-                filtered: filtered.length,
-                total: crops.length,
-              })}
-            </p>
-          </div>
-
-          {/* Summary chips */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginLeft: 16,
-            }}
-          >
-            {[
-              {
-                labelKey: "dash_healthy",
-                count: summary.healthy,
-                color: "var(--green)",
-              },
-              {
-                labelKey: "dash_attention",
-                count: summary.attention,
-                color: "var(--amber)",
-              },
-              {
-                labelKey: "dash_critical",
-                count: summary.critical,
-                color: "var(--red)",
-              },
-            ].map(({ labelKey, count, color }) => (
-              <div
-                key={labelKey}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "3px 10px",
-                  borderRadius: 20,
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  fontSize: 12,
-                  fontFamily: "DM Mono, monospace",
-                  color,
-                }}
-              >
-                <span style={{ fontWeight: 700 }}>{count}</span>
-                <span style={{ opacity: 0.7 }}>{t(labelKey)}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Add Crop CTA */}
-          <button
-            onClick={() => navigate("/add-crop")}
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              padding: "8px 18px",
-              borderRadius: 10,
-              fontSize: 13,
-              fontWeight: 600,
-              background: "var(--green)",
-              border: "none",
-              color: "var(--btn-on-green)",
-              cursor: "pointer",
-              boxShadow: "0 0 16px rgba(74,222,128,0.2)",
-            }}
-          >
-            <PlusCircle size={15} /> {t("dash_add_crop")}
-          </button>
-
-          <button
-            onClick={refreshData}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 8,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-          </button>
-        </header>
-
-        {harvestReadyCrops.length > 0 && (
-          <div
-            className="animate-fade-in"
-            style={{
-              flexShrink: 0,
-              padding: "10px 24px",
-              background: "rgba(245,158,11,0.12)",
-              borderBottom: "1px solid rgba(245,158,11,0.3)",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <span
-              className="harvest-pulse"
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: "var(--amber)",
-                flexShrink: 0,
-              }}
-            />
-            <Scissors
-              size={16}
-              style={{ color: "var(--amber)", flexShrink: 0 }}
-            />
-            <div style={{ flex: 1 }}>
-              <span
-                style={{ fontWeight: 700, fontSize: 13, color: "var(--amber)" }}
-              >
-                {t("dash_harvest_banner", {
-                  n: harvestReadyCrops.length,
-                  s: harvestReadyCrops.length !== 1 ? "s" : "",
-                })}
-              </span>
-              <span
-                style={{
-                  fontSize: 12,
-                  color: "var(--text-3)",
-                  marginLeft: 10,
-                  fontFamily: "DM Mono, monospace",
-                }}
-              >
-                {t("dash_harvest_banner_sub")}
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                setFilterReady(true);
-                setFilterStatus("All");
-                setFilterStage("All");
-                setFilterCrop("All");
-                setSearch("");
-                setPage(1);
-              }}
-              style={{
-                padding: "5px 14px",
-                borderRadius: 8,
-                fontSize: 12,
-                fontFamily: "DM Mono, monospace",
-                background: "rgba(245,158,11,0.2)",
-                border: "1px solid rgba(245,158,11,0.4)",
-                color: "var(--amber)",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
-            >
-              {t("dash_harvest_action")}
-            </button>
-          </div>
-        )}
-
+        {/* Summary chips */}
         <div
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginLeft: 16,
+          }}
+        >
+          {[
+            {
+              labelKey: "dash_healthy",
+              count: summary.healthy,
+              color: "var(--green)",
+            },
+            {
+              labelKey: "dash_attention",
+              count: summary.attention,
+              color: "var(--amber)",
+            },
+            {
+              labelKey: "dash_critical",
+              count: summary.critical,
+              color: "var(--red)",
+            },
+          ].map(({ labelKey, count, color }) => (
+            <div
+              key={labelKey}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "3px 10px",
+                borderRadius: 20,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                fontSize: 12,
+                fontFamily: "DM Mono, monospace",
+                color,
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>{count}</span>
+              <span style={{ opacity: 0.7 }}>{t(labelKey)}</span>
+            </div>
+          ))}
+        </div>
+
+        <PrimaryButton
+          onClick={() => navigate("/add-crop")}
+          icon={PlusCircle}
+          style={{ marginLeft: "auto" }}
+        >
+          {t("dash_add_crop")}
+        </PrimaryButton>
+
+        <IconButton onClick={refreshData}>
+          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+        </IconButton>
+      </PageHeader>
+
+      {harvestReadyCrops.length > 0 && (
+        <div
+          className="animate-fade-in"
+          style={{
             flexShrink: 0,
-            padding: "8px 24px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
+            padding: "10px 24px",
+            background: "rgba(245,158,11,0.12)",
+            borderBottom: "1px solid rgba(245,158,11,0.3)",
             display: "flex",
             alignItems: "center",
             gap: 12,
           }}
         >
-          {/* Search */}
-          <div style={{ position: "relative", flex: 1, maxWidth: 360 }}>
-            <Search
-              size={14}
+          <span
+            className="harvest-pulse"
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "var(--amber)",
+              flexShrink: 0,
+            }}
+          />
+          <Scissors
+            size={16}
+            style={{ color: "var(--amber)", flexShrink: 0 }}
+          />
+          <div style={{ flex: 1 }}>
+            <span
+              style={{ fontWeight: 700, fontSize: 13, color: "var(--amber)" }}
+            >
+              {t("dash_harvest_banner", {
+                n: harvestReadyCrops.length,
+                s: harvestReadyCrops.length !== 1 ? "s" : "",
+              })}
+            </span>
+            <span
               style={{
-                position: "absolute",
-                left: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
+                fontSize: 12,
                 color: "var(--text-3)",
+                marginLeft: 10,
+                fontFamily: "DM Mono, monospace",
               }}
-            />
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
+            >
+              {t("dash_harvest_banner_sub")}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setFilterReady(true);
+              setFilterStatus("All");
+              setFilterStage("All");
+              setFilterCrop("All");
+              setSearch("");
+              setPage(1);
+            }}
+            style={{
+              padding: "5px 14px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontFamily: "DM Mono, monospace",
+              background: "rgba(245,158,11,0.2)",
+              border: "1px solid rgba(245,158,11,0.4)",
+              color: "var(--amber)",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            {t("dash_harvest_action")}
+          </button>
+        </div>
+      )}
+
+      <FilterBar>
+        <SearchBar
+          value={search}
+          onChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
+          onClear={() => setSearch("")}
+          placeholder={t("dash_search_placeholder")}
+        />
+
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "7px 12px",
+            borderRadius: 8,
+            fontSize: 12,
+            cursor: "pointer",
+            background: showFilters ? "rgba(74,222,128,0.1)" : "var(--surface)",
+            border: `1px solid ${showFilters ? "rgba(74,222,128,0.3)" : "var(--border)"}`,
+            color: showFilters ? "var(--green)" : "var(--text-2)",
+          }}
+        >
+          <SlidersHorizontal size={13} /> {t("dash_filters")}
+          {activeFilters > 0 && (
+            <span
+              style={{
+                padding: "0 5px",
+                borderRadius: 4,
+                fontSize: 10,
+                fontFamily: "DM Mono, monospace",
+                background: "var(--green)",
+                color: "var(--btn-on-green)",
+              }}
+            >
+              {activeFilters}
+            </span>
+          )}
+        </button>
+
+        {/* Quick stage pills */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {STAGES_EN.slice(0, 4).map((s, i) => (
+            <FilterPill
+              key={s}
+              active={filterStage === s}
+              onClick={() => {
+                setFilterStage(filterStage === s ? "All" : s);
                 setPage(1);
               }}
-              placeholder={t("dash_search_placeholder")}
-              style={{
-                width: "100%",
-                paddingLeft: 32,
-                paddingRight: search ? 28 : 12,
-                paddingTop: 7,
-                paddingBottom: 7,
-                borderRadius: 8,
-                fontSize: 13,
-                fontFamily: "DM Mono, monospace",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                outline: "none",
-                caretColor: "var(--green)",
-              }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
+            >
+              {t(STAGES_KEYS[i])}
+            </FilterPill>
+          ))}
+        </div>
+      </FilterBar>
+
+      {/* Expanded filters */}
+      {showFilters && (
+        <div
+          className="animate-fade-in"
+          style={{
+            flexShrink: 0,
+            padding: "8px 24px",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--bg-3)",
+            display: "flex",
+            alignItems: "center",
+            gap: 24,
+          }}
+        >
+          {[
+            {
+              label: t("add_field_crop_type"),
+              value: filterCrop,
+              set: (v) => {
+                setFilterCrop(v);
+                setPage(1);
+              },
+              opts: CROPS,
+              optLabels: CROPS.map((o) =>
+                o === "All" ? t("stage_all") : td(o),
+              ),
+            },
+            {
+              label: t("add_field_stage"),
+              value: filterStage,
+              set: (v) => {
+                setFilterStage(v);
+                setPage(1);
+              },
+              opts: STAGES_EN,
+              optLabels: STAGES_KEYS.map((k) => t(k)),
+            },
+            {
+              label: t("analytics_th_status"),
+              value: filterStatus,
+              set: (v) => {
+                setFilterStatus(v);
+                setPage(1);
+              },
+              opts: STATUS_EN,
+              optLabels: STATUSES_KEYS.map((k) => t(k)),
+            },
+          ].map(({ label, value, set, opts, optLabels }) => (
+            <div
+              key={label}
+              style={{ display: "flex", alignItems: "center", gap: 8 }}
+            >
+              <span
                 style={{
-                  position: "absolute",
-                  right: 8,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
+                  fontSize: 12,
+                  fontFamily: "DM Mono, monospace",
                   color: "var(--text-3)",
                 }}
               >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          {/* Filter toggle */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "7px 12px",
-              borderRadius: 8,
-              fontSize: 12,
-              cursor: "pointer",
-              background: showFilters
-                ? "rgba(74,222,128,0.1)"
-                : "var(--surface)",
-              border: `1px solid ${showFilters ? "rgba(74,222,128,0.3)" : "var(--border)"}`,
-              color: showFilters ? "var(--green)" : "var(--text-2)",
-            }}
-          >
-            <SlidersHorizontal size={13} /> {t("dash_filters")}
-            {activeFilters > 0 && (
-              <span
-                style={{
-                  padding: "0 5px",
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontFamily: "DM Mono, monospace",
-                  background: "var(--green)",
-                  color: "var(--btn-on-green)",
-                }}
-              >
-                {activeFilters}
+                {label}
               </span>
-            )}
-          </button>
-
-          {/* Quick stage pills */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {STAGES_EN.slice(0, 4).map((s, i) => (
-              <button
-                key={s}
-                onClick={() => {
-                  setFilterStage(filterStage === s ? "All" : s);
-                  setPage(1);
-                }}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 20,
-                  fontSize: 11,
-                  fontFamily: "DM Mono, monospace",
-                  cursor: "pointer",
-                  background:
-                    filterStage === s
-                      ? "rgba(74,222,128,0.15)"
-                      : "var(--surface)",
-                  border: `1px solid ${filterStage === s ? "rgba(74,222,128,0.4)" : "var(--border)"}`,
-                  color: filterStage === s ? "var(--green)" : "var(--text-3)",
-                }}
-              >
-                {t(STAGES_KEYS[i])}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Expanded filters */}
-        {showFilters && (
-          <div
-            className="animate-fade-in"
+              <SelectField
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                options={opts.map((o, i) => ({
+                  value: o,
+                  label: optLabels ? optLabels[i] : o,
+                }))}
+              />
+            </div>
+          ))}
+          <button
+            onClick={() => {
+              setSearch("");
+              setFilterStage("All");
+              setFilterCrop("All");
+              setFilterStatus("All");
+              setFilterReady(false);
+              setPage(1);
+            }}
             style={{
-              flexShrink: 0,
-              padding: "8px 24px",
-              borderBottom: "1px solid var(--border)",
-              background: "var(--bg-3)",
-              display: "flex",
-              alignItems: "center",
-              gap: 24,
+              marginLeft: "auto",
+              fontSize: 11,
+              fontFamily: "DM Mono, monospace",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-3)",
             }}
           >
-            {[
-              {
-                label: t("add_field_crop_type"),
-                value: filterCrop,
-                set: (v) => {
-                  setFilterCrop(v);
-                  setPage(1);
-                },
-                opts: CROPS,
-                optLabels: CROPS.map((o) =>
-                  o === "All" ? t("stage_all") : td(o),
-                ),
-              },
-              {
-                label: t("add_field_stage"),
-                value: filterStage,
-                set: (v) => {
-                  setFilterStage(v);
-                  setPage(1);
-                },
-                opts: STAGES_EN,
-                optLabels: STAGES_KEYS.map((k) => t(k)),
-              },
-              {
-                label: t("analytics_th_status"),
-                value: filterStatus,
-                set: (v) => {
-                  setFilterStatus(v);
-                  setPage(1);
-                },
-                opts: STATUS_EN,
-                optLabels: STATUSES_KEYS.map((k) => t(k)),
-              },
-            ].map(({ label, value, set, opts, optLabels }) => (
-              <div
-                key={label}
-                style={{ display: "flex", alignItems: "center", gap: 8 }}
-              >
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontFamily: "DM Mono, monospace",
-                    color: "var(--text-3)",
-                  }}
-                >
-                  {label}
-                </span>
-                <div style={{ position: "relative" }}>
-                  <select
-                    value={value}
-                    onChange={(e) => set(e.target.value)}
-                    style={{
-                      appearance: "none",
-                      padding: "5px 24px 5px 10px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      fontFamily: "DM Mono, monospace",
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text-2)",
-                      cursor: "pointer",
-                      outline: "none",
-                    }}
-                  >
-                    {opts.map((o, i) => (
-                      <option key={o} value={o}>
-                        {optLabels ? optLabels[i] : o}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={10}
-                    style={{
-                      position: "absolute",
-                      right: 8,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      pointerEvents: "none",
-                      color: "var(--text-3)",
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-            <button
-              onClick={() => {
-                setSearch("");
-                setFilterStage("All");
-                setFilterCrop("All");
-                setFilterStatus("All");
-                setFilterReady(false);
-                setPage(1);
-              }}
-              style={{
-                marginLeft: "auto",
-                fontSize: 11,
-                fontFamily: "DM Mono, monospace",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--text-3)",
-              }}
-            >
-              {t("dash_clear_all")}
-            </button>
-          </div>
-        )}
+            {t("dash_clear_all")}
+          </button>
+        </div>
+      )}
 
-        {/* Crop grid */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-          {loading ? (
+      {/* Crop grid */}
+      <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+        {loading ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+              gap: 16,
+            }}
+          >
+            {Array.from({ length: 8 }).map((_, i) => (
+              <LoadingShimmer key={i} count={1} height={255} />
+            ))}
+          </div>
+        ) : paginated.length > 0 ? (
+          <>
             <div
               style={{
                 display: "grid",
@@ -968,206 +801,53 @@ export default function Dashboard() {
                 gap: 16,
               }}
             >
-              {Array(8)
-                .fill(0)
-                .map((_, i) => (
-                  <div
-                    key={i}
-                    className="shimmer"
-                    style={{
-                      height: 255,
-                      borderRadius: 16,
-                      border: "1px solid var(--border)",
-                    }}
-                  />
-                ))}
-            </div>
-          ) : paginated.length > 0 ? (
-            <>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
-                  gap: 16,
-                }}
-              >
-                {paginated.map((crop) => (
-                  <CropCard
-                    key={crop.id}
-                    data={crop}
-                    t={t}
-                    td={td}
-                    onClick={() => navigate(`/crop/${crop.id}`)}
-                  />
-                ))}
-                {/* Always visible at end of first page */}
-                {page === 1 && !filterReady && (
-                  <AddCropCard onClick={() => navigate("/add-crop")} t={t} />
-                )}
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    marginTop: 24,
-                  }}
-                >
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      color: page === 1 ? "var(--text-3)" : "var(--text-2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (n) => (
-                      <button
-                        key={n}
-                        onClick={() => setPage(n)}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          cursor: "pointer",
-                          fontFamily: "DM Mono, monospace",
-                          fontSize: 12,
-                          background:
-                            n === page ? "var(--green)" : "var(--surface)",
-                          border: `1px solid ${n === page ? "transparent" : "var(--border)"}`,
-                          color:
-                            n === page
-                              ? "var(--btn-on-green)"
-                              : "var(--text-2)",
-                          fontWeight: n === page ? 700 : 400,
-                        }}
-                      >
-                        {n}
-                      </button>
-                    ),
-                  )}
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      color:
-                        page === totalPages ? "var(--text-3)" : "var(--text-2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
+              {paginated.map((crop) => (
+                <CropCard
+                  key={crop.id}
+                  data={crop}
+                  t={t}
+                  td={td}
+                  onClick={() => navigate(`/crop/${crop.id}`)}
+                />
+              ))}
+              {/* Always visible at end of last page */}
+              {page === totalPages && !filterReady && (
+                <AddCropCard onClick={() => navigate("/add-crop")} t={t} />
               )}
-            </>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                gap: 16,
-              }}
-            >
-              {crops.length === 0 ? (
-                <>
-                  <div
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 20,
-                      background: "rgba(74,222,128,0.1)",
-                      border: "1px solid rgba(74,222,128,0.2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <PlusCircle size={28} style={{ color: "var(--green)" }} />
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 15,
-                        color: "var(--text-2)",
-                      }}
-                    >
-                      {t("dash_no_crops")}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "var(--text-3)",
-                        marginTop: 6,
-                      }}
-                    >
-                      {t("dash_no_crops_sub")}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => navigate("/add-crop")}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
-                      padding: "10px 22px",
-                      borderRadius: 10,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      background: "var(--green)",
-                      border: "none",
-                      color: "var(--btn-on-green)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <PlusCircle size={15} /> {t("dash_add_first")}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 16,
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Activity size={24} style={{ color: "var(--text-3)" }} />
-                  </div>
-                  <div style={{ color: "var(--text-2)", fontSize: 14 }}>
-                    {t("dash_no_match")}
-                  </div>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                setPage={setPage}
+                style={{ marginTop: 24 }}
+              />
+            )}
+          </>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              gap: 16,
+            }}
+          >
+            {crops.length === 0 ? (
+              <EmptyState
+                icon={PlusCircle}
+                title={t("dash_no_crops")}
+                description={t("dash_no_crops_sub")}
+              />
+            ) : (
+              <EmptyState
+                icon={Activity}
+                title={t("dash_no_match")}
+                description={
                   <button
                     onClick={() => {
                       setSearch("");
@@ -1186,16 +866,17 @@ export default function Dashboard() {
                       border: "1px solid var(--border)",
                       color: "var(--text-3)",
                       cursor: "pointer",
+                      marginTop: 16,
                     }}
                   >
                     {t("dash_clear_filters")}
                   </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+                }
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </PageShell>
   );
 }

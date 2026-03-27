@@ -14,7 +14,7 @@ import {
   Globe,
   HelpCircle,
 } from "lucide-react";
-import Sidebar from "../components/Sidebar";
+import { PageShell, PageHeader, SectionCard } from "../components/ui";
 import { useSettings } from "../hooks/useSettings";
 import { useT } from "../hooks/useTranslation";
 import { USE_MOCK_DATA } from "../data/mockData";
@@ -55,22 +55,6 @@ function SectionHeader({ icon: Icon, title, sub }) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function Card({ children, style }) {
-  return (
-    <div
-      style={{
-        borderRadius: 16,
-        padding: 24,
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        ...style,
-      }}
-    >
-      {children}
     </div>
   );
 }
@@ -227,16 +211,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        overflow: "hidden",
-        background: "var(--bg)",
-      }}
-    >
-      <Sidebar />
-
+    <PageShell>
       {showOnboarding && (
         <Onboarding
           onDone={() => {
@@ -255,23 +230,11 @@ export default function SettingsPage() {
         }}
       >
         {/* Header */}
-        <header
-          style={{
-            flexShrink: 0,
-            padding: "0 28px",
-            height: 64,
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
+        <PageHeader
+          title={t("settings_title")}
+          subtitle={t("settings_subtitle")}
         >
-          <div>
-            <h1 className="page-title">{t("settings_title")}</h1>
-            <p className="page-subtitle">{t("settings_subtitle")}</p>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, marginLeft: "auto" }}>
             <button
               onClick={handleReset}
               style={{
@@ -317,7 +280,7 @@ export default function SettingsPage() {
               )}
             </button>
           </div>
-        </header>
+        </PageHeader>
 
         <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
           <div
@@ -329,7 +292,7 @@ export default function SettingsPage() {
             }}
           >
             {/* Profile */}
-            <Card>
+            <SectionCard>
               <SectionHeader
                 icon={User}
                 title={t("settings_profile")}
@@ -376,10 +339,10 @@ export default function SettingsPage() {
                   />
                 </FieldRow>
               </div>
-            </Card>
+            </SectionCard>
 
             {/* Appearance */}
-            <Card>
+            <SectionCard>
               <SectionHeader
                 icon={Sun}
                 title={t("settings_appearance")}
@@ -421,10 +384,10 @@ export default function SettingsPage() {
                   />
                 </FieldRow>
               </div>
-            </Card>
+            </SectionCard>
 
             {/* Language */}
-            <Card>
+            <SectionCard>
               <SectionHeader
                 icon={Globe}
                 title={t("settings_language")}
@@ -450,10 +413,10 @@ export default function SettingsPage() {
                   हिंदी भाषा चुनी गई है। सहेजने के बाद पूरा ऐप हिंदी में दिखेगा।
                 </div>
               )}
-            </Card>
+            </SectionCard>
 
             {/* Help & Onboarding */}
-            <Card>
+            <SectionCard>
               <SectionHeader
                 icon={HelpCircle}
                 title={t("settings_onboarding")}
@@ -481,10 +444,10 @@ export default function SettingsPage() {
                 <HelpCircle size={14} />
                 {t("settings_restart_onboarding")}
               </button>
-            </Card>
+            </SectionCard>
 
             {/* Display */}
-            <Card>
+            <SectionCard>
               <SectionHeader
                 icon={LayoutGrid}
                 title={t("settings_display_section")}
@@ -534,10 +497,10 @@ export default function SettingsPage() {
                   </select>
                 </FieldRow>
               </div>
-            </Card>
+            </SectionCard>
 
             {/* Alerts */}
-            <Card>
+            <SectionCard>
               <SectionHeader
                 icon={Bell}
                 title={t("settings_alerts_section")}
@@ -551,10 +514,10 @@ export default function SettingsPage() {
                   disabledLabel={t("common_hiding_acked")}
                 />
               </FieldRow>
-            </Card>
+            </SectionCard>
 
             {/* Data Source */}
-            <Card>
+            <SectionCard>
               <SectionHeader
                 icon={Database}
                 title={t("settings_data_source")}
@@ -605,10 +568,10 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
-            </Card>
+            </SectionCard>
           </div>
         </div>
       </main>
-    </div>
+    </PageShell>
   );
 }

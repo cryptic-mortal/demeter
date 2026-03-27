@@ -11,10 +11,18 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Scissors,
+  RotateCcw,
 } from "lucide-react";
 import { useFarmData } from "../hooks/useFarmData";
 import { generateAlerts } from "../utils/dataUtils";
-import Sidebar from "../components/Sidebar";
+import {
+  PageShell,
+  PageHeader,
+  IconButton,
+  FilterPill,
+  LoadingShimmer,
+  EmptyState,
+} from "../components/ui";
 import { useT } from "../hooks/useTranslation";
 
 // Severity
@@ -59,7 +67,7 @@ const AGENT_COLORS = {
   HISTORIAN: "var(--text-3)",
 };
 
-function AlertCard({ alert, onAck, onDismiss, t, td }) {
+function AlertCard({ alert, onAck, onUnack, onDismiss, t, td }) {
   const style = alert.isHarvestAlert ? HARVEST_STYLE : SEV[alert.severity];
   const Icon = style.icon;
 
@@ -179,7 +187,7 @@ function AlertCard({ alert, onAck, onDismiss, t, td }) {
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-          {!alert.ack && (
+          {!alert.ack ? (
             <button
               onClick={() => onAck(alert.id)}
               title="Acknowledge"
@@ -197,6 +205,25 @@ function AlertCard({ alert, onAck, onDismiss, t, td }) {
               }}
             >
               <CheckCircle2 size={13} />
+            </button>
+          ) : (
+            <button
+              onClick={() => onUnack(alert.id)}
+              title="Unacknowledge"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+            >
+              <RotateCcw size={13} />
             </button>
           )}
           <button
@@ -238,22 +265,33 @@ export default function Alerts() {
 
   const ack = (id) =>
     setAlerts((a) => a.map((al) => (al.id === id ? { ...al, ack: true } : al)));
+  const unack = (id) =>
+    setAlerts((a) =>
+      a.map((al) => (al.id === id ? { ...al, ack: false } : al)),
+    );
   const dismiss = (id) => setAlerts((a) => a.filter((al) => al.id !== id));
   const ackAll = () => setAlerts((a) => a.map((al) => ({ ...al, ack: true })));
 
   const counts = useMemo(
     () => ({
-      harvest: alerts.filter((a) => a.isHarvestAlert && !a.ack).length,
+      harvest: alerts.filter((a) => a.isHarvestAlert && (showAcked || !a.ack))
+        .length,
       critical: alerts.filter(
-        (a) => a.severity === "critical" && !a.ack && !a.isHarvestAlert,
+        (a) =>
+          a.severity === "critical" &&
+          (showAcked || !a.ack) &&
+          !a.isHarvestAlert,
       ).length,
-      warning: alerts.filter((a) => a.severity === "warning" && !a.ack).length,
+      warning: alerts.filter(
+        (a) => a.severity === "warning" && (showAcked || !a.ack),
+      ).length,
       info: alerts.filter(
-        (a) => a.severity === "info" && !a.ack && !a.isHarvestAlert,
+        (a) =>
+          a.severity === "info" && (showAcked || !a.ack) && !a.isHarvestAlert,
       ).length,
-      total: alerts.filter((a) => !a.ack).length,
+      total: alerts.filter((a) => showAcked || !a.ack).length,
     }),
-    [alerts],
+    [alerts, showAcked],
   );
 
   const filtered = useMemo(
@@ -297,314 +335,225 @@ export default function Alerts() {
   ];
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        overflow: "hidden",
-        background: "var(--bg)",
-      }}
-    >
-      <Sidebar />
-
-      <main
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
+    <PageShell>
+      {/* Header */}
+      <PageHeader
+        title={t("alerts_title")}
+        subtitle={
+          loading
+            ? t("alerts_subtitle_loading")
+            : t("alerts_subtitle", {
+                unacked: counts.total,
+                total: alerts.length,
+              })
+        }
       >
-        {/* Header */}
-        <header
-          style={{
-            flexShrink: 0,
-            padding: "0 24px",
-            height: 64,
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
-          <div>
-            <h1 className="page-title">{t("alerts_title")}</h1>
-            <p className="page-subtitle">
-              {loading
-                ? t("alerts_subtitle_loading")
-                : t("alerts_subtitle", {
-                    unacked: counts.total,
-                    total: alerts.length,
-                  })}
-            </p>
-          </div>
-
-          <div
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <button
-              onClick={refreshData}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text-3)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
-
-            <button
-              onClick={() => setShowAcked(!showAcked)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                borderRadius: 8,
-                fontSize: 11,
-                fontFamily: "DM Mono, monospace",
-                background: showAcked
-                  ? "rgba(74,222,128,0.1)"
-                  : "var(--surface)",
-                border: `1px solid ${showAcked ? "rgba(74,222,128,0.3)" : "var(--border)"}`,
-                color: showAcked ? "var(--green)" : "var(--text-3)",
-                cursor: "pointer",
-              }}
-            >
-              {showAcked ? <Bell size={12} /> : <BellOff size={12} />}
-              {showAcked ? t("alerts_show_all") : t("alerts_unacked_only")}
-            </button>
-
-            <button
-              onClick={ackAll}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                borderRadius: 8,
-                fontSize: 11,
-                fontFamily: "DM Mono, monospace",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text-3)",
-                cursor: "pointer",
-              }}
-            >
-              <CheckCircle2 size={12} /> {t("alerts_ack_all")}
-            </button>
-          </div>
-        </header>
-
-        {/* Filter bar */}
         <div
           style={{
-            flexShrink: 0,
-            padding: "8px 24px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-2)",
+            marginLeft: "auto",
             display: "flex",
             alignItems: "center",
             gap: 8,
-            overflowX: "auto",
           }}
         >
-          <SlidersHorizontal
-            size={14}
-            style={{ color: "var(--text-3)", flexShrink: 0 }}
-          />
-          {FILTER_OPTIONS.map(({ key, label, count, color }) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                borderRadius: 20,
-                fontSize: 12,
-                fontFamily: "DM Mono, monospace",
-                flexShrink: 0,
-                cursor: "pointer",
-                background: filter === key ? "var(--surface)" : "transparent",
-                border: `1px solid ${filter === key ? "var(--border-bright)" : "transparent"}`,
-                color:
-                  filter === key ? color || "var(--text)" : "var(--text-3)",
-                transition: "all 0.15s",
-              }}
-            >
-              {count > 0 && (
-                <span
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 9,
-                    background: color ? `${color}30` : "var(--border)",
-                    color: color || "var(--text-3)",
-                  }}
-                >
-                  {count}
-                </span>
-              )}
-              {label}
-            </button>
-          ))}
-        </div>
+          <IconButton onClick={refreshData}>
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </IconButton>
 
-        {/* Alert list */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-          {loading ? (
-            <div
-              style={{
-                maxWidth: 640,
-                margin: "0 auto",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="shimmer"
-                  style={{
-                    height: 80,
-                    borderRadius: 12,
-                    border: "1px solid var(--border)",
-                  }}
-                />
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                gap: 16,
-              }}
-            >
-              <div
+          <button
+            onClick={() => setShowAcked(!showAcked)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 8,
+              fontSize: 11,
+              fontFamily: "DM Mono, monospace",
+              background: showAcked ? "rgba(74,222,128,0.1)" : "var(--surface)",
+              border: `1px solid ${showAcked ? "rgba(74,222,128,0.3)" : "var(--border)"}`,
+              color: showAcked ? "var(--green)" : "var(--text-3)",
+              cursor: "pointer",
+            }}
+          >
+            {showAcked ? <BellOff size={12} /> : <Bell size={12} />}
+            {showAcked ? t("alerts_unacked_only") : t("alerts_show_all")}
+          </button>
+
+          <button
+            onClick={ackAll}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 8,
+              fontSize: 11,
+              fontFamily: "DM Mono, monospace",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-3)",
+              cursor: "pointer",
+            }}
+          >
+            <CheckCircle2 size={12} /> {t("alerts_ack_all_btn")}
+          </button>
+        </div>
+      </PageHeader>
+
+      {/* Filter bar */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: "8px 24px",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--bg-2)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          overflowX: "auto",
+        }}
+      >
+        <SlidersHorizontal
+          size={14}
+          style={{ color: "var(--text-3)", flexShrink: 0 }}
+        />
+        {FILTER_OPTIONS.map(({ key, label, count, color }) => (
+          <FilterPill
+            key={key}
+            active={filter === key}
+            onClick={() => setFilter(key)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: filter === key ? color || "var(--text)" : "var(--text-3)",
+            }}
+          >
+            {count > 0 && (
+              <span
                 style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 16,
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  fontSize: 9,
+                  background: color ? `${color}30` : "var(--border)",
+                  color: color || "var(--text-3)",
                 }}
               >
-                <CheckCircle2 size={24} style={{ color: "var(--green)" }} />
-              </div>
-              <div style={{ color: "var(--text-2)" }}>
-                {alerts.length === 0
-                  ? t("alerts_empty_nodata")
-                  : t("alerts_empty_connected")}
-              </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                maxWidth: 640,
-                margin: "0 auto",
-                display: "flex",
-                flexDirection: "column",
-                gap: 24,
-              }}
-            >
-              {/* Unacked */}
-              {filtered.filter((a) => !a.ack).length > 0 && (
-                <div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontFamily: "DM Mono, monospace",
-                      color: "var(--text-3)",
-                      marginBottom: 12,
-                    }}
-                  >
-                    {t("alerts_unacked", {
-                      n: filtered.filter((a) => !a.ack).length,
-                    })}
-                  </div>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
-                    {filtered
-                      .filter((a) => !a.ack)
-                      .map((a) => (
-                        <AlertCard
-                          key={a.id}
-                          alert={a}
-                          onAck={ack}
-                          onDismiss={dismiss}
-                          t={t}
-                          td={td}
-                        />
-                      ))}
-                  </div>
-                </div>
-              )}
+                {count}
+              </span>
+            )}
+            {label}
+          </FilterPill>
+        ))}
+      </div>
 
-              {/* Acked */}
-              {showAcked && filtered.filter((a) => a.ack).length > 0 && (
-                <div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontFamily: "DM Mono, monospace",
-                      color: "var(--text-3)",
-                      marginBottom: 12,
-                    }}
-                  >
-                    {t("alerts_acknowledged", {
-                      n: filtered.filter((a) => a.ack).length,
-                    })}
-                  </div>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
-                    {filtered
-                      .filter((a) => a.ack)
-                      .map((a) => (
-                        <AlertCard
-                          key={a.id}
-                          alert={a}
-                          onAck={ack}
-                          onDismiss={dismiss}
-                          t={t}
-                          td={td}
-                        />
-                      ))}
-                  </div>
+      {/* Alert list */}
+      <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+        {loading ? (
+          <div
+            style={{
+              maxWidth: 640,
+              margin: "0 auto",
+            }}
+          >
+            <LoadingShimmer count={3} height={80} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title={
+              alerts.length === 0
+                ? t("alerts_empty_nodata")
+                : t("alerts_empty_connected")
+            }
+          />
+        ) : (
+          <div
+            style={{
+              maxWidth: 640,
+              margin: "0 auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 24,
+            }}
+          >
+            {/* Unacked */}
+            {filtered.filter((a) => !a.ack).length > 0 && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "DM Mono, monospace",
+                    color: "var(--text-3)",
+                    marginBottom: 12,
+                  }}
+                >
+                  {t("alerts_unacked", {
+                    n: filtered.filter((a) => !a.ack).length,
+                  })}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  {filtered
+                    .filter((a) => !a.ack)
+                    .map((a) => (
+                      <AlertCard
+                        key={a.id}
+                        alert={a}
+                        onAck={ack}
+                        onUnack={unack}
+                        onDismiss={dismiss}
+                        t={t}
+                        td={td}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Acked */}
+            {showAcked && filtered.filter((a) => a.ack).length > 0 && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "DM Mono, monospace",
+                    color: "var(--text-3)",
+                    marginBottom: 12,
+                  }}
+                >
+                  {t("alerts_acknowledged", {
+                    n: filtered.filter((a) => a.ack).length,
+                  })}
+                </div>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  {filtered
+                    .filter((a) => a.ack)
+                    .map((a) => (
+                      <AlertCard
+                        key={a.id}
+                        alert={a}
+                        onAck={ack}
+                        onUnack={unack}
+                        onDismiss={dismiss}
+                        t={t}
+                        td={td}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </PageShell>
   );
 }
