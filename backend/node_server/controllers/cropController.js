@@ -35,4 +35,20 @@ const createCrop = async (req, res) => {
   }
 };
 
-module.exports = { createCrop };
+const getAllCrops = async (req, res) => {
+  console.log('getAllCrops endpoint called');
+  try {
+    const crops = await CropStateSchema.find();
+    console.log(`Retrieved ${crops.length} crops from the database.`);
+    res.status(200).json({
+      message: 'Crops retrieved successfully',
+      data: crops
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  } finally {
+    console.log('getAllCrops endpoint was called');
+  }
+};
+
+module.exports = { createCrop, getAllCrops };

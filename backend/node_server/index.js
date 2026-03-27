@@ -18,7 +18,7 @@ connectMongoDB();
 // Mount Routes
 // All routes inside farmRoutes will be prefixed with /api
 app.use('/api', farmRoutes); 
-app.use('/api/crop', cropRoutes);
+app.use('/api/crops', cropRoutes);
 
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);

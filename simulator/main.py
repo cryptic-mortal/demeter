@@ -218,7 +218,9 @@ async def get_all_states():
             continue
             
         crop_type = crop.get("crop", "lettuce").lower()
-        age_hours = crop.get("simulated_age_hours", 0)
+        age_hours = crop.get("sequence_number", 0) * crop.get("cycle_duration_hours", 1)
+
+        print(f"Simulating Crop ID: {cid} | Type: {crop_type} | Age (hrs): {age_hours}")
         cycle_duration = crop.get("cycle_duration_hours", 1)
         
         new_stage = crop.get("stage", "seedling")
