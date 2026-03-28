@@ -415,7 +415,7 @@ export default function RunCycle() {
               color: "var(--text-3)",
             }}
           >
-            Loading crop…
+            {t("run_loading_crop")}
           </span>
         </div>
       </PageShell>
@@ -483,7 +483,10 @@ export default function RunCycle() {
               fontWeight: 600,
             }}
           >
-            {cycles} cycle{cycles !== 1 ? "s" : ""} completed
+            {t("run_cycles_complete", {
+              n: cycles,
+              s: cycles !== 1 ? "s" : "",
+            })}
           </span>
         </div>
       )}
@@ -578,8 +581,8 @@ export default function RunCycle() {
                       }}
                     >
                       {daysLeft === 0
-                        ? "✂ Ready to harvest"
-                        : `${daysLeft}d until harvest`}
+                        ? t("run_harvest_ready")
+                        : t("run_days_until", { n: daysLeft })}
                     </span>
                   )}
                 </div>
@@ -601,7 +604,7 @@ export default function RunCycle() {
                       color: "var(--text-3)",
                     }}
                   >
-                    Growth Progress
+                    {t("run_growth_progress")}
                   </span>
                   <span
                     style={{
@@ -1006,11 +1009,8 @@ export default function RunCycle() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div className="section-label">
-                  {phase === "running"
-                    ? "🔴 Live Agent Feed"
-                    : phase === "done"
-                      ? "✅ Cycle Log"
-                      : "Agent Log"}
+                  phase === "running" ? t("add_log_live") : phase === "done" ?
+                  t("add_log_done") : t("add_log_idle")
                 </div>
                 {phase === "running" && (
                   <span
@@ -1026,7 +1026,7 @@ export default function RunCycle() {
                       alignSelf: "center",
                     }}
                   >
-                    STREAMING
+                    {t("run_streaming")}
                   </span>
                 )}
               </div>
@@ -1062,7 +1062,7 @@ export default function RunCycle() {
                     fontSize: 11,
                   }}
                 >
-                  Waiting for agent output…
+                  {t("run_log_waiting")}
                 </div>
               ) : (
                 logs.map((entry, i) => (
@@ -1125,12 +1125,12 @@ export default function RunCycle() {
             {phase === "running" ? (
               <>
                 <Brain size={18} style={{ animation: "pulse 1s infinite" }} />
-                Agents Working…
+                {t("run_agents_working")}
               </>
             ) : phase === "done" ? (
               <>
                 <RotateCcw size={17} />
-                Run Another Cycle
+                {t("add_run_another")}
               </>
             ) : (
               <>

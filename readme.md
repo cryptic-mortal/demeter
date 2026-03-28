@@ -39,13 +39,13 @@ Built for the **Microsoft AI Unlocked - AI for India** hackathon, Demeter addres
   - `Knowledge_Base` - agronomic research documents (RAG)
   - `Plant_Biographies_HF` - long-term per-crop memory (via Mem0)
 - **Mem0** - semantic plant biography system backed by Azure OpenAI
-- **NodeJS + MongoDB** - structured crop metadata and event logs
+- **MongoDB** - primary structured store for crop state, sensor history, and simulator state
 
 ### Physics Simulator
 
-- **Digital Twin** with a hybrid physics + neural residual model
-- Simulates pH, EC, water temp, air temp, humidity, VPD, and biomass
-- Exposes REST API consumed by both the agent loop and frontend
+- **Multi-batch Digital Twin**: FastAPI server that manages one `DigitalTwin` instance per crop, all loaded into memory and synced from MongoDB on every request
+- Simulates pH, EC, water temp, air temp, humidity, VPD, and biomass across all active crops simultaneously
+- Hybrid physics + neural residual model (`ResidualPhysicsNet`) and image generation
 - Syncs state to **Azure Digital Twins** after every action
 
 ---
@@ -160,37 +160,84 @@ The JudgeAgent is the reward signal generator. After each cycle, it:
 6. **Updates Qdrant** payload and **writes to FarmMemory (Mem0)**
 7. Returns training data → Bandit updates its weights online
 
-### The Simulator - Physics + Neural Residual Digital Twin
+### The Simulator - Multi-Batch Physics + Neural Residual Digital Twin
 
-The simulator (`simulator/main.py`) is a **FastAPI server** running a `DigitalTwin` class:
+The simulator (`simulator/main.py`) is a **FastAPI server** managing a **fleet of `DigitalTwin` instances** — one per active crop:
 
+- **Multi-batch architecture**: An in-memory `simulators` dict maps `crop_id → DigitalTwin`. On every request, `sync_simulators_from_db()` reads MongoDB and instantiates twins for any newly registered crops automatically
 - **Hybrid physics model**: First-principles equations for pH, EC, VPD, biomass growth
 - **Neural residual**: A small `ResidualPhysicsNet` (PyTorch MLP) that corrects physics approximations
 - **State vector**: `[pH, EC, water_temp, air_temp, humidity, VPD, biomass]`
+- **Global clock**: A `simulator_state` MongoDB collection tracks the global tick; each `GET /simulation/state` call advances it by 1 hour and increments `simulated_age_hours` for every crop
 - **Image generation**: Outputs plant health images based on a bucket score (0–100)
 - **Azure Digital Twins sync**: Every action call pushes telemetry to the ADT twin (`HydrophonicTank`)
-- **Dual endpoints**: `/simulation/state` (agent loop) and `/azure/state` (ADT read-back)
+- **Endpoints**:
+  - `GET /simulation/state` — returns state for **all** active crops
+  - `POST /simulation/action` — accepts a **list** of `{crop_id, action}` objects, steps each twin
 
 ---
 
 ## Frontend
 
-The frontend is a highly responsive React 19 SPA featuring bilingual support (English/हिन्दी) for accessibility in Indian agriculture, made to serve as a Proof-of-Concept.
+The frontend is a highly responsive React 19 SPA featuring bilingual support (English/हिन्दी) for accessibility in Indian agriculture.
 
 ### Pages
 
-| Page              | Route           | Description                                                                                        |
-| ----------------- | --------------- | -------------------------------------------------------------------------------------------------- |
-| Landing Page      | `/`             | Hero, live agent activity feed, feature cards, live stats                                          |
-| Dashboard         | `/dashboard`    | Crop card grid with health/maturity/stage filters and harvest banner                               |
-| Crop Details      | `/crop/:id`     | Per-crop sensor charts, agent reasoning log, event timeline, actuator commands                     |
-| Add Crop          | `/add-crop`     | Form to initialize a crop + live agent pipeline log with 6-phase progress tracker                  |
-| Add Crop          | `/add-crop`     | Form to initialize a crop + live agent pipeline log with 6-phase progress tracker                  |
-| Farm Intelligence | `/intelligence` | Natural-language RAG search against the agronomic knowledge base                                   |
-| Analytics         | `/analytics`    | Multi-chart analytics: pH/EC/temp traces, daily sequences, parameter health scores, per-crop table |
-| Alerts            | `/alerts`       | Categorized alert system (CRITICAL/WARNING/INFO/HARVEST) with acknowledge workflow                 |
-| Help              | `/help`         | Farming terms, Simple explanations and definitions                                                 |
-| Settings          | `/settings`     | Theme, language, farm name, notification prefs, onboarding                                         |
+| Page              | Route                | Description                                                                                                                                        |
+| ----------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Landing Page      | `/`                  | Hero, live agent activity feed, feature cards, live stats                                                                                          |
+| Dashboard         | `/dashboard`         | Crop card grid with health/maturity/stage filters and harvest banner                                                                               |
+| Crop Details      | `/crop/:id`          | Per-crop sensor charts, agent reasoning log, event timeline, actuator commands                                                                     |
+| Add Crop          | `/add-crop`          | Crop registration form: Type, ID, location, notes, sensor IDs, and optional seed photo                                                             |
+| Run Cycle         | `/run-cycle/:cropId` | Triggers agent cycle for a specific crop. Streams live logs with phase progress indicator, live sensor readout panel, and actuator command summary |
+| Farm Intelligence | `/intelligence`      | Natural-language RAG search against the agronomic knowledge base                                                                                   |
+| Analytics         | `/analytics`         | Multi-chart analytics: pH/EC/temp traces, daily sequences, parameter health scores, per-crop table                                                 |
+| Alerts            | `/alerts`            | Categorized alert system (CRITICAL/WARNING/INFO/HARVEST) with acknowledge workflow                                                                 |
+| Help              | `/help`              | Farming terms, simple explanations and definitions                                                                                                 |
+| Settings          | `/settings`          | Theme, language, farm name, notification prefs, onboarding                                                                                         |
+
+---
+
+## Backend
+
+The Node.js Express server (`backend/node_server/`) is the **primary CRUD layer** for all crop data, backed by MongoDB.
+
+### Crop Schema
+
+```
+crop_id              String (unique, required)
+crop                 String
+stage                String
+sequence_number      Number
+cycle_duration_hours Number  (auto-set per crop type: lettuce/basil=1h, tomato/strawberry=2h)
+total_crop_lifetime_days Number
+simulated_age_hours  Number
+planted_at           Date
+last_updated         Date
+sensors              { pH: [Number], EC: [Number], temp: [Number], humidity: [Number] }
+sensor_ids           { ph_sensor, ec_sensor, temp_sensor, humidity_sensor }
+location             String
+notes                String
+image_url            String
+action_taken         Mixed
+outcome              String
+explanation_log      String
+bandit_action_id     Number
+strategic_intent     String
+reward_score         Number
+visual_diagnosis     String
+schema_version       String  (current: "1.2")
+```
+
+### API Routes
+
+| Method | Path                 | Description             |
+| ------ | -------------------- | ----------------------- |
+| POST   | `/api/crops/create`  | Register a new crop     |
+| GET    | `/api/crops/all`     | Retrieve all crops      |
+| GET    | `/api/crops/:cropId` | Get a single crop by ID |
+| PUT    | `/api/crops/:cropId` | Partial update          |
+| DELETE | `/api/crops/:cropId` | Remove a crop           |
 
 ---
 
@@ -246,24 +293,32 @@ demeter/
 │   │   ├── create-index.py      # Qdrant index setup script
 │   │   └── reset-db.py          # Database reset utility
 │   └── node_server/
-│       ├── index.js             # Express.js server - crop CRUD API
-│       ├── routes/farmRoutes.js # Farm route definitions
-│       ├── controllers/         # Farm controller logic
-│       └── config/db.js         # MongoDB connection
+│       ├── index.js             # Express.js server - crop CRUD API + MongoDB init
+│       ├── routes/
+│       │   ├── farmRoutes.js    # Farm/Qdrant history routes
+│       │   └── cropRoutes.js    # Crop CRUD routes
+│       ├── controllers/
+│       │   ├── farmController.js
+│       │   └── cropController.js
+│       ├── schema/
+│       │   └── cropSchema.js    # Mongoose schema (v1.2)
+│       └── config/db.js         # MongoDB + legacy DB connection
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── App.js               # Router, providers, onboarding gate
-│   │   ├── pages/               # All 8 page components
+│   │   ├── pages/               # All 10 page components
 │   │   ├── components/          # Sidebar, AgentWidgets, Onboarding
 │   │   ├── hooks/               # useFarmData, useSettings, useTranslation
-│   │   ├── api/                 # agentApi.js, farmApi.jsx
+│   │   ├── api/
+│   │   │   ├── agentApi.js
+│   │   │   └── farmApi.jsx      # MongoDB CRUD calls
 │   │   ├── utils/               # translations.js, dataUtils.js
 │   │   └── data/mockData.js     # Mock data for testing
 │   └── tailwind.config.js
 │
 ├── simulator/
-│   └── main.py                  # DigitalTwin + FastAPI server + Azure ADT sync
+│   └── main.py                  # Multi-batch DigitalTwin fleet + Azure ADT sync
 │
 ├── Knowledge_Base/              # Drop agronomic PDFs here for RAG ingestion
 ├── requirements.txt
@@ -280,6 +335,7 @@ demeter/
 - NodeJS 18+
 - A running [Qdrant](https://qdrant.tech/) instance (local Docker or Qdrant Cloud)
 - Azure OpenAI resource with GPT-4.1 deployment
+- MongoDB instance (local or Atlas)
 - (Optional) Azure Digital Twins instance
 
 ### 1. Clone & Install Python Dependencies
@@ -324,7 +380,7 @@ ADT_URL=your-adt-instance.digitaltwins.azure.net
 
 # Backend
 PORT=3001
-MONGODB_URI=your_mongodb_url
+MONGODB_URI=your_mongodb_connection_string
 
 # Frontend
 REACT_APP_AGENT_API_URL=http://localhost:8000
@@ -346,11 +402,13 @@ docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
 ### 4. Initialize Database
 
-Run the following command from the root directory to create the required collections and indexes:
+Run the following command from the root directory to create the required Qdrant collections and indexes:
 
 ```bash
 python backend/server/create-index.py
 ```
+
+MongoDB collections are created automatically on first use by the simulator.
 
 ### 5. Initialize the Knowledge Base (RAG)
 

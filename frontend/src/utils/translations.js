@@ -201,6 +201,14 @@ const en = {
   run_title: "Run Agent Cycle",
   run_subtitle: "Execute AI monitoring cycle for {crop}",
   run_for_crop: "Running for: {crop}",
+  run_loading_crop: "Loading crop…",
+  run_growth_progress: "Growth Progress",
+  run_streaming: "STREAMING",
+  run_log_waiting: "Waiting for agent output…",
+  run_cycles_complete: "{n} cycle{s} completed",
+  run_agents_working: "Agents Working…",
+  run_harvest_ready: "✂ Ready to harvest",
+  run_days_until: "{n}d until harvest",
 
   // Alerts
   alerts_title: "Alerts",
@@ -680,6 +688,14 @@ const hi = {
   run_title: "एजेंट चक्र चलाएं",
   run_subtitle: "{crop} के लिए AI चक्र चलाएं",
   run_for_crop: "फसल: {crop} के लिए",
+  run_loading_crop: "फसल लोड हो रही है…",
+  run_growth_progress: "विकास प्रगति",
+  run_streaming: "लाइव",
+  run_log_waiting: "एजेंट आउटपुट की प्रतीक्षा…",
+  run_cycles_complete: "{n} चक्र पूरे हुए",
+  run_agents_working: "एजेंट काम कर रहे हैं…",
+  run_harvest_ready: "✂ कटाई के लिए तैयार",
+  run_days_until: "कटाई में {n} दिन बाकी",
 
   // Alerts
   alerts_title: "अलर्ट",

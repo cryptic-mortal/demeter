@@ -138,6 +138,38 @@ const AI_AGENTS = [
     roleKey: "help_agent_explainer_role",
     detailKey: "help_agent_explainer_detail",
   },
+  {
+    id: "atmospheric",
+    icon: Wind,
+    color: "var(--amber)",
+    nameKey: "help_agent_atmospheric_name",
+    roleKey: "help_agent_atmospheric_role",
+    detailKey: "help_agent_atmospheric_detail",
+  },
+  {
+    id: "water",
+    icon: Droplets,
+    color: "var(--blue)",
+    nameKey: "help_agent_water_name",
+    roleKey: "help_agent_water_role",
+    detailKey: "help_agent_water_detail",
+  },
+  {
+    id: "supervisor",
+    icon: Sparkles,
+    color: "var(--green)",
+    nameKey: "help_agent_supervisor_name",
+    roleKey: "help_agent_supervisor_role",
+    detailKey: "help_agent_supervisor_detail",
+  },
+  {
+    id: "doctor",
+    icon: Eye,
+    color: "var(--red)",
+    nameKey: "help_agent_doctor_name",
+    roleKey: "help_agent_doctor_role",
+    detailKey: "help_agent_doctor_detail",
+  },
 ];
 
 const STAGES = [
@@ -334,6 +366,26 @@ const HELP_EN = {
   help_agent_explainer_detail:
     'After each cycle, this agent writes a human-readable explanation of what happened and why. That\'s what you see in the "AI Decision Reasoning" section of each crop.',
 
+  help_agent_atmospheric_name: "Atmospheric Agent",
+  help_agent_atmospheric_role: "Controls climate and airflow",
+  help_agent_atmospheric_detail:
+    "This agent manages fan speed, temperature, and humidity. It calculates Vapor Pressure Deficit (VPD) and adjusts airflow continuously to keep the growing environment in the optimal range for the crop type and current growth stage.",
+
+  help_agent_water_name: "Water Agent",
+  help_agent_water_role: "Manages nutrient solution and pH",
+  help_agent_water_detail:
+    "This agent calculates the precise dosage of acid, base, and nutrient solution needed to correct pH and EC levels. It uses a physics-based model of the water tank to predict how much dosing is required, then refines it with what the RL agent has learned from past cycles.",
+
+  help_agent_supervisor_name: "Supervisor Agent",
+  help_agent_supervisor_role: "Merges plans and sends final commands",
+  help_agent_supervisor_detail:
+    "The supervisor combines the plans from the Atmospheric and Water agents, validates them against the Strategy agent's recommendation, and dispatches the final actuator commands to the hardware. It is the last AI step before any physical action is taken.",
+
+  help_agent_doctor_name: "Doctor Agent",
+  help_agent_doctor_role: "Diagnoses plant health visually",
+  help_agent_doctor_detail:
+    "Using computer vision (Azure CV), this agent analyzes the plant image uploaded during each cycle to detect disease, pest damage, or visual anomalies. Its diagnosis is attached to the cycle log and can trigger critical alerts even when sensor readings appear normal.",
+
   // Growth Stages
   help_stage_seedling: "Seedling",
   help_stage_seedling_desc:
@@ -529,6 +581,26 @@ const HELP_HI = {
   help_agent_explainer_role: "सरल भाषा में reasoning लिखता है",
   help_agent_explainer_detail:
     'प्रत्येक cycle के बाद, यह agent एक human-readable explanation लिखता है कि क्या हुआ और क्यों। यही आप हर फसल की "AI निर्णय तर्क" section में देखते हैं।',
+
+  help_agent_atmospheric_name: "वायुमंडलीय एजेंट",
+  help_agent_atmospheric_role: "जलवायु और वायु प्रवाह नियंत्रित करता है",
+  help_agent_atmospheric_detail:
+    "यह एजेंट पंखे की गति, तापमान और नमी को नियंत्रित करता है। यह VPD (Vapor Pressure Deficit) की गणना करता है और हर फसल और विकास अवस्था के लिए वातावरण को सही रखने के लिए वायु प्रवाह को लगातार समायोजित करता है।",
+
+  help_agent_water_name: "जल एजेंट",
+  help_agent_water_role: "पोषक घोल और pH को नियंत्रित करता है",
+  help_agent_water_detail:
+    "यह एजेंट pH और EC स्तर को सुधारने के लिए एसिड, बेस और पोषक घोल की सटीक मात्रा की गणना करता है। यह पानी के टैंक के भौतिक मॉडल का उपयोग करके अनुमान लगाता है कि कितनी dosing आवश्यक है, और RL एजेंट के पिछले cycles से सीखे गए अनुभव से इसे बेहतर करता है।",
+
+  help_agent_supervisor_name: "सुपरवाइज़र एजेंट",
+  help_agent_supervisor_role: "योजनाओं को जोड़ता है और अंतिम कमांड भेजता है",
+  help_agent_supervisor_detail:
+    "सुपरवाइज़र वायुमंडलीय और जल एजेंटों की योजनाओं को मिलाता है, उन्हें Strategy एजेंट की सिफारिश के साथ जांचता है, और हार्डवेयर को अंतिम एक्चुएटर कमांड भेजता है। कोई भी शारीरिक कार्रवाई से पहले यह अंतिम AI चरण है।",
+
+  help_agent_doctor_name: "डॉक्टर एजेंट",
+  help_agent_doctor_role: "दृश्य रूप से पौधे के स्वास्थ्य का निदान करता है",
+  help_agent_doctor_detail:
+    "Computer Vision (Azure CV) का उपयोग करके, यह एजेंट हर चक्र में अपलोड की गई पौधे की तस्वीर का विश्लेषण करता है और बीमारी, कीट क्षति या दृश्य असामान्यताओं का पता लगाता है। इसका निदान चक्र लॉग में जोड़ा जाता है और तब भी अलर्ट ट्रिगर कर सकता है जब सेंसर रीडिंग सामान्य लगती हैं।",
 
   // Stages
   help_stage_seedling: "अंकुर (Seedling)",
