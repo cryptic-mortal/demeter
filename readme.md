@@ -248,6 +248,9 @@ demeter/
 ├── agent/
 │   ├── main_agent.py            # Orchestration loop (runs the 7-agent cycle)
 │   ├── memory.py                # FarmMemory class (Mem0 + Qdrant)
+│   ├── guardrails/
+│   │   ├── README.md            # Guardrails documentation
+│   │   └── validation.py        # Input sanitization, bounds checking, injection detection
 │   ├── Marl/
 │   │   ├── bandit.py            # Contextual Bandit (LinGreedy, 15 arms)
 │   │   ├── strategies.py        # Strategy definitions
