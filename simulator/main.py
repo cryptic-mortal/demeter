@@ -11,6 +11,7 @@ from typing import List
 from PIL import Image
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
+from pymongo.errors import ConfigurationError
 from datetime import datetime
 
 # Load env from root
@@ -20,7 +21,10 @@ load_dotenv(env_path)
 
 MONGO_URI = os.environ.get("MONGODB_URI")
 mongo_client = MongoClient(MONGO_URI)
-db = mongo_client.get_default_database()
+try:
+    db = mongo_client.get_default_database()
+except ConfigurationError:
+    db = mongo_client["test"]
 crops_collection = db["cropstates"]
 sim_state_collection = db["simulator_state"]
 
