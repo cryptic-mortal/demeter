@@ -12,16 +12,17 @@ from typing import Dict, List, Tuple
 # ============================================================================
 
 HARD_BOUNDS = {
-    # ATMOSPHERIC PARAMETERS
-    "air_temp": {"min": 10, "max": 35, "unit": "°C", "desc": "Air Temperature"},
-    "humidity": {"min": 30, "max": 90, "unit": "%", "desc": "Relative Humidity"},
-    "co2": {"min": 300, "max": 1500, "unit": "ppm", "desc": "CO₂ Level"},
-    "light_intensity": {"min": 0, "max": 100, "unit": "%", "desc": "Light Intensity"},
+    # ATMOSPHERIC TARGETS (OUTPUT from AtmosphericAgent)
+    "air_temp": {"min": 10, "max": 35, "unit": "°C", "desc": "Air Temperature Target"},
+    "humidity": {"min": 30, "max": 90, "unit": "%", "desc": "Humidity Target"},
+    "co2": {"min": 300, "max": 1500, "unit": "ppm", "desc": "CO₂ Target"},
+    "light_intensity": {"min": 0, "max": 100, "unit": "%", "desc": "Light Intensity Target"},
     
-    # WATER PARAMETERS
-    "ph": {"min": 4.0, "max": 7.5, "unit": "pH", "desc": "pH Level"},
-    "ec": {"min": 0.1, "max": 3.0, "unit": "dS/m", "desc": "Electrical Conductivity"},
-    "water_temp": {"min": 12, "max": 28, "unit": "°C", "desc": "Water Temperature"},
+    # WATER TARGETS (OUTPUT from WaterAgent)
+    # These are TARGET values, not dosages. Dosages are computed from these targets.
+    "ph": {"min": 4.0, "max": 7.5, "unit": "pH", "desc": "pH Target"},
+    "ec": {"min": 0.1, "max": 3.0, "unit": "dS/m", "desc": "EC Target"},
+    "water_temp": {"min": 12, "max": 28, "unit": "°C", "desc": "Water Temperature Target"},
 }
 
 # ============================================================================

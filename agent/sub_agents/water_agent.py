@@ -27,15 +27,21 @@ YOUR ROLE:
 You are an AI specialist controlling ONLY the water chemistry of a hydroponic farm.
 Your SOLE purpose is to maintain optimal nutrient uptake through pH, EC, and water temperature.
 
- HARD CONSTRAINTS (NON-NEGOTIABLE):
-1. pH: MUST stay between 4.0 and 7.5
-2. EC (Electrical Conductivity): MUST be between 0.1 and 3.0 dS/m
-3. Water Temperature: MUST be between 12°C and 28°C
+ HARD CONSTRAINTS (NON-NEGOTIABLE - YOU WILL FAIL IF YOU VIOLATE THESE):
+1. pH: MUST stay between 4.0 and 7.5 (failure if outside range)
+2. EC (Electrical Conductivity): MUST be between 0.1 and 3.0 dS/m (failure if outside range)
+3. Water Temperature: MUST be between 12°C and 28°C (failure if outside range)
 
- OPTIMIZATION TARGETS:
+ OPTIMIZATION TARGETS (aim for these if possible, but NEVER violate hard constraints):
 - pH: 5.5-6.5 (vegetables) or 6.0-7.0 (herbs) - NEVER shift >0.5 in one cycle
 - EC: Crop-specific ranges within 0.1-3.0 bounds
 - Water Temp: 20-24°C optimal (prevent root rot if >24°C)
+
+ CRITICAL SITUATION HANDLING:
+- If plant is in critical condition (health < 50%), STAY SAFE within hard constraints
+- Do NOT attempt aggressive nutrient corrections that violate bounds
+- Conservative stable values within bounds are BETTER than aggressive out-of-bounds values
+- The system will gradually improve through multiple safe cycles
 
  CURRENT STATE:
 Sensors: {sensors}
@@ -47,7 +53,11 @@ Visual Data: Available via 'diagnose_plant' tool if leaf yellowing/issues detect
 
  OUTPUT REQUIREMENTS:
 - Return ONLY valid JSON with exactly these keys: 'ph', 'ec', 'water_temp'
-- All values must be NUMBERS within the hard constraints above
+- NEVER output dosages (acid_dosage_ml, etc.) - the system will compute those from your targets
+- pH: between 4.0 and 7.5
+- EC: between 0.1 and 3.0 dS/m
+- Water Temperature: between 12°C and 28°C
+- All values must be NUMBERS within these hard constraints
 - NO markdown, NO code blocks, NO explanations, NO text outside JSON
 - Invalid JSON will be REJECTED and cause a retry
 
@@ -57,7 +67,7 @@ Visual Data: Available via 'diagnose_plant' tool if leaf yellowing/issues detect
 - Do NOT return anything except the JSON object
 - Do NOT exceed hard constraint bounds under any circumstance
 
- TIP: Call 'diagnose_plant()' (with no arguements) if you suspect nutrient deficiency(e.g. yellowing leaves) or root rot
+ TIP: Call 'diagnose_plant()' (with no arguments) if you suspect nutrient deficiency (e.g., yellowing leaves) or root rot
  
 """
 
@@ -99,6 +109,8 @@ class WaterAgent:
         workflow.add_node("tools", execute_tools_node)
         workflow.add_node("simulate", simulate_node)
         workflow.add_node("finalize", finalize_node)
+        
+        workflow.add_node("skip_unsafe", lambda state: {"final_action": {"ph": 6.0, "ec": 1.5, "water_temp": 22.0}})
 
         # Flow
         workflow.set_entry_point("decide")
@@ -120,18 +132,19 @@ class WaterAgent:
             if state["simulation_result"]["passed"]:
                 return "finalize"
             elif state["retry_count"] > 3:
-                print(f"[{self.name}] ⚠️ Max retries reached. Forcing unsafe plan.")
-                return "finalize"
+                print(f"[{self.name}] ⚠️ Max retries reached. Skipping execution (no-op).")
+                return "skip_unsafe"
             else:
                 return "decide"
 
         workflow.add_conditional_edges(
             "simulate", 
             check_simulation_result, 
-            {"finalize": "finalize", "decide": "decide"}
+            {"finalize": "finalize", "decide": "decide", "skip_unsafe": "skip_unsafe"}
         )
         
         workflow.add_edge("finalize", END)
+        workflow.add_edge("skip_unsafe", END)
         final_plan = workflow.compile()
         print("final_plan(Water): ", final_plan)
         return final_plan

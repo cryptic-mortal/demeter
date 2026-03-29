@@ -291,3 +291,58 @@ class SupervisorAgent:
         strategy_name = STRATEGIES[action_idx]
         
         return strategy_name, "Advisory Only", int(action_idx)
+
+    def learn_from_outcome(self, fmu, outcome_info):
+        """
+        Bandit Learning: Update the model based on action outcome.
+        
+        Args:
+            fmu: The FMU object containing metadata about the previous action
+            outcome_info: Either:
+                - Current plant health (0-100) from simulator, OR
+                - Reward score (-1.0 to 1.0) from judge
+        """
+        # Retrieve the action that was taken in the previous cycle
+        prev_action_idx = fmu.metadata.get("bandit_action_id")
+        if prev_action_idx is None:
+            return  # No previous action to learn from
+        
+        prev_action_idx = int(prev_action_idx)
+        
+        # Build the context vector (same as get_strategic_goal)
+        sensors = fmu.metadata.get('sensors', {})
+        fmu_vector = fmu.vector
+        vis_vec1 = np.array(fmu_vector) if isinstance(fmu_vector, list) else fmu_vector
+        vis_vec = vis_vec1[:512] if len(vis_vec1) >= 512 else None
+        if vis_vec is None or len(vis_vec) == 0: vis_vec = np.zeros(512)
+        
+        s_vec = np.array([
+            (float(sensors.get('pH', 6.0)) - 6.0) / 2.0, 
+            float(sensors.get('EC', 1.0)) / 3.0,
+            float(sensors.get('temp', 25.0)) / 40.0
+        ])
+        context_vector = np.concatenate([vis_vec, s_vec])
+        
+        # Handle reward: Can be health (0-100) or judge reward (-1 to 1)
+        if isinstance(outcome_info, dict):
+            reward = float(outcome_info.get("reward", 0.0))
+        else:
+            # Assume it's health (0-100), convert to normalized reward
+            health_val = float(outcome_info)
+            if health_val >= 85:
+                reward = 1.0  # Excellent
+            elif health_val >= 70:
+                reward = health_val / 100.0  # Good
+            elif health_val >= 50:
+                reward = (health_val / 100.0) * 0.5  # Mediocre
+            else:
+                reward = -1.0  # Terrible
+        
+        # Update the bandit model with this outcome
+        self.bandit.update(context_vector, prev_action_idx, reward)
+        
+        strategy_name = STRATEGIES.get(prev_action_idx, "UNKNOWN")
+        print(f"[{self.name}] 🧠 Bandit Learning: {strategy_name} (Action {prev_action_idx}) → Reward {reward:.2f}")
+        
+        # Save the updated model
+        self.bandit.save()

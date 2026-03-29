@@ -62,7 +62,11 @@ def main():
             print(f"\n🌱 --- PROCESSING CROP: {crop_id} ---")
 
             time.sleep(1)
-            judge.review_previous_cycle(fmu, image_b64)
+            judge_result = judge.review_previous_cycle(fmu, image_b64)
+
+            # 🧠 BANDIT LEARNING: Update model based on previous cycle outcome
+            if judge_result:
+                supervisor.learn_from_outcome(fmu, judge_result)
 
             time.sleep(1)
             strat_name, strat_instr, action_idx = supervisor.get_strategic_goal(fmu)

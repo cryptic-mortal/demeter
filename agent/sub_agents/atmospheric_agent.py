@@ -26,17 +26,23 @@ YOUR ROLE:
 You are an AI specialist controlling ONLY the atmospheric conditions of a hydroponic farm.
 Your SOLE purpose is to optimize plant growth through air temperature, humidity, CO₂, and light.
 
- HARD CONSTRAINTS (NON-NEGOTIABLE):
-1. Air Temperature: MUST be between 10°C and 35°C
-2. Humidity: MUST be between 30% and 90%
-3. CO₂ Level: MUST be between 300 and 1500 ppm
-4. Light Intensity: MUST be between 0% and 100%
+ HARD CONSTRAINTS (NON-NEGOTIABLE - YOU WILL FAIL IF YOU VIOLATE THESE):
+1. Air Temperature: MUST be between 10°C and 35°C (failure if outside range)
+2. Humidity: MUST be between 30% and 90% (failure if outside range)
+3. CO₂ Level: MUST be between 300 and 1500 ppm (failure if outside range)
+4. Light Intensity: MUST be between 0% and 100% (failure if outside range)
 
- OPTIMIZATION TARGETS:
+ OPTIMIZATION TARGETS (aim for these if possible, but NEVER violate hard constraints):
 - VPD: 0.8-1.2 kPa (Vegetative), 1.2-1.6 kPa (Flowering)
 - Humidity: 60-80% (avoid >80% mold risk, avoid <30% stress)
 - CO₂: 1000-1500 ppm only if light is at 80%+
 - Temperature: Crop-specific (see strategy)
+
+ CRITICAL SITUATION HANDLING:
+- If plant is in critical condition (health < 50%), STAY SAFE within hard constraints
+- Do NOT attempt aggressive corrections that violate bounds
+- Conservative stable values within bounds are BETTER than aggressive out-of-bounds values
+- The system will gradually improve through multiple safe cycles
 
  CURRENT STATE:
 Sensors: {sensors}
@@ -49,12 +55,13 @@ Simulation Feedback: {critique}
 - Return ONLY valid JSON with exactly these keys: 'air_temp', 'humidity', 'co2', 'light_intensity'
 - All values must be NUMBERS within the hard constraints above
 - NO markdown, NO code blocks, NO explanations, NO text outside JSON
-- Invalid JSON will be REJECTED and cause a retry
+- EVERY violation of hard constraints will cause a RETRY - your plan will be rejected
 
  FORBIDDEN:
 - Do NOT attempt to control water, nutrients, or pH
 - Do NOT make suggestions unrelated to the farm
 - Do NOT return anything except the JSON object
+- Do NOT violate hard constraints under ANY circumstance
 """
 
 class AtmosphericAgent:
@@ -95,6 +102,8 @@ class AtmosphericAgent:
         workflow.add_node("simulate", simulate_node)
 
         workflow.add_node("finalize", finalize_node)
+        
+        workflow.add_node("skip_unsafe", lambda state: {"final_action": {"air_temp": 25, "humidity": 65, "co2": 800, "light_intensity": 50}})
 
         workflow.set_entry_point("decide")
 
@@ -115,8 +124,8 @@ class AtmosphericAgent:
             if state["simulation_result"]["passed"]:
                 return "finalize"
             elif state["retry_count"] > 3:
-                print(f"[{self.name}] ⚠️ Max retries reached. Forcing unsafe plan.")
-                return "finalize"
+                print(f"[{self.name}] ⚠️ Max retries reached. Skipping execution (no-op).")
+                return "skip_unsafe"
             else:
                 # Loop back to fix the mistake
                 return "decide"
@@ -124,10 +133,11 @@ class AtmosphericAgent:
         workflow.add_conditional_edges(
             "simulate", 
             check_simulation_result, 
-            {"finalize": "finalize", "decide": "decide"}
+            {"finalize": "finalize", "decide": "decide", "skip_unsafe": "skip_unsafe"}
         )
         
         workflow.add_edge("finalize", END)
+        workflow.add_edge("skip_unsafe", END)
         final_plan = workflow.compile()
         print("final_plan(Atmos): ", final_plan)
         return final_plan

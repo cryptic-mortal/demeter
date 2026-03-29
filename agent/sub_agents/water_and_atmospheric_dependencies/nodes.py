@@ -4,6 +4,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from agent.sub_agents.water_and_atmospheric_dependencies.physics_engine import predict_outcome
 from agent.sub_agents.water_and_atmospheric_dependencies.retrieval import ask_historian, ask_rag, diagnose_plant, ask_memory
 from agent.sub_agents.water_and_atmospheric_dependencies.tools import calculate_vpd, web_search, check_ph_safety
+from agent.guardrails.validation import validate_bounds, HARD_BOUNDS
 
 # 🟢 Add diagnose_plant and ask_memory to the map
 TOOL_MAP = {
@@ -16,11 +17,35 @@ TOOL_MAP = {
     "check_ph_safety": check_ph_safety
 }
 
+def validate_plan_constraints(draft):
+    """
+    Check if draft plan violates hard constraints.
+    Returns (is_valid, violation_message)
+    """
+    if not isinstance(draft, dict) or not draft:
+        return False, "Plan must be a non-empty JSON object"
+    
+    violations = []
+    for param, value in draft.items():
+        if param in HARD_BOUNDS:
+            # Skip None values (no-ops)
+            if value is None or (isinstance(value, (int, float)) and value == 0):
+                continue
+            
+            is_valid, message = validate_bounds(param, value)
+            if not is_valid:
+                violations.append(message)
+    
+    if violations:
+        return False, "\n".join(violations)
+    return True, ""
+
 def decide_node(state, model, system_prompt):
     """
     Node 1: Drafts a plan OR calls a tool.
     """
-    # print(f"   🤔 Thinking (Attempt {state['retry_count'] + 1})...")
+    retry_num = state['retry_count'] + 1
+    print(f"   🤔 Thinking (Attempt {retry_num}/3)...")
     
     messages = state.get("messages", [])
     if not messages:
@@ -35,6 +60,12 @@ def decide_node(state, model, system_prompt):
             user_msg += f"\n\n❌ PREVIOUS SIMULATION FAILED: {state['critique']}"
             
         messages.append(HumanMessage(content=user_msg))
+    else:
+        # On retry, check if there's new critique to add
+        if state.get("critique"):
+            # Add critique as a new feedback message
+            critique_msg = HumanMessage(content=f"❌ PREVIOUS ATTEMPT FAILED: {state['critique']}\n\nPlease try a different plan.")
+            messages = messages + [critique_msg]
 
     response = model.invoke(messages)
     new_messages = messages + [response]
@@ -45,8 +76,6 @@ def decide_node(state, model, system_prompt):
             "messages": new_messages, 
             "next_step": "tools"
         }
-    
-    # print("📝 Drafting Plan: ", response.content)
 
     content = response.content.replace("```json", "").replace("```", "").strip()
     
@@ -56,17 +85,15 @@ def decide_node(state, model, system_prompt):
     except json.JSONDecodeError:
         try:
             # 2. Fallback: Python literal eval (Handles single quotes)
-            # print("   ⚠️ JSON parse failed, trying Python eval...")
             draft = ast.literal_eval(content)
         except Exception as e:
-            # print(f"   ❌ Plan Parsing Failed Completely: {e}")
             draft = {}
         
     return {
         "draft_plan": draft, 
         "messages": new_messages,
         "next_step": "simulate",
-        "retry_count": state['retry_count'] + 1
+        "retry_count": retry_num
     }
 
 def execute_tools_node(state):
@@ -110,13 +137,26 @@ def execute_tools_node(state):
     return {"messages": state["messages"] + tool_results}
 
 def simulate_node(state):
-    # print("   🧪 Simulating Outcome...")
+    print("   🧪 Simulating Outcome...")
     draft = state.get('draft_plan')
     
     if not draft:
         return {"simulation_result": {"passed": True, "reason": "No valid JSON plan generated."}}
+    
+    # 🛡️ CHECK CONSTRAINTS BEFORE SIMULATION (avoid wasting LLM calls)
+    is_valid, violation_msg = validate_plan_constraints(draft)
+    if not is_valid:
+        critique = f"Hard constraint violation:\n{violation_msg}"
+        return {
+            "simulation_result": {
+                "passed": False,
+                "reason": critique
+            },
+            "critique": critique  # Pass back to LLM for next retry
+        }
 
     current = state['sensors']
+    
     # Ensure physics engine is imported correctly at top
     prediction = predict_outcome(current, draft)
     
@@ -125,15 +165,23 @@ def simulate_node(state):
     
     result = {"passed": True, "reason": ""}
     
-    if health < 92.0:
-        result["reason"] = f"Predicted Health drops to {health}%. Warning: {risk}"
+    if health < 70.0:
+        reason = f"Predicted Health drops to {health}%. Warning: {risk}"
+        result["reason"] = reason
         result["passed"] = False
+        return {
+            "simulation_result": result,
+            "critique": reason  # Pass back to LLM for next retry
+        }
     else:
         result["passed"] = True
         
     return {"simulation_result": result}
 
 def finalize_node(state):
+    plan = state['draft_plan']
     print("   ✅ Plan Approved.")
-    # print(f"   Final Plan: {json.dumps(state['draft_plan'], indent=2)}")
-    return {"final_action": state['draft_plan']}
+    reason = state.get("simulation_result", {}).get("reason", "")
+    if reason:
+        print(f"      Reason: {reason}")
+    return {"final_action": plan}

@@ -101,6 +101,18 @@ class DigitalTwin:
         self.tank_volume = 100.0
         self.plant_health = 100.0
         self.residual_model = ResidualPhysicsNet(7, 4)
+        
+        # Try to load trained weights
+        trained_weights_path = os.path.join(current_dir, "residual_physics.pt")
+        if os.path.exists(trained_weights_path):
+            try:
+                checkpoint = torch.load(trained_weights_path, map_location="cpu")
+                self.residual_model.load_state_dict(checkpoint["model_state_dict"])
+                print(f"[DEBUG] Loaded trained ResidualPhysicsNet weights from {trained_weights_path}")
+            except Exception as e:
+                print(f"[WARNING] Failed to load trained weights: {e}. Using random initialization.")
+        else:
+            print(f"[DEBUG] Trained weights not found at {trained_weights_path}. Using random initialization.")
 
         self.history = {
             "ph": deque([float(self.state[0])] * 5, maxlen=HISTORY_LEN),
